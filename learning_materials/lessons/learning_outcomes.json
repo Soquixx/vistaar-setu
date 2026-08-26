@@ -1,0 +1,17 @@
+{
+  "counting": {
+    "grade": 1,
+    "learning_area": "FLN",
+    "learning_outcome": "The learner can count objects and match quantities with numbers within the lesson's number range."
+  },
+  "number_recognition": {
+    "grade": 1,
+    "learning_area": "FLN",
+    "learning_outcome": "The learner can recognise and identify numbers introduced in the lesson."
+  },
+  "letter_recognition": {
+    "grade": 1,
+    "learning_area": "FLN",
+    "learning_outcome": "The learner can recognise and identify the letters introduced in the lesson."
+  }
+}

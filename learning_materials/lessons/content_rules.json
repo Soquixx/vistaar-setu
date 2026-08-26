@@ -1,0 +1,32 @@
+{
+  "counting": {
+    "keywords": ["count", "counting", "गिनो", "गिनती"],
+    "learning_objective": "Students will be able to recognise quantities and practise counting the objects correctly.",
+    "classroom_activity": "The teacher places familiar classroom objects in front of the students and asks them to count the objects together in their mother tongue.",
+    "assessment_prompts": [
+      "Show a group of objects and ask the student to count them.",
+      "Ask the student to identify how many objects are shown.",
+      "Ask the student to count a different number of objects independently."
+    ]
+  },
+  "number_recognition": {
+    "keywords": ["number", "numbers", "पहचानो", "संख्या पहचान"],
+    "learning_objective": "Students will be able to recognise and identify basic numbers.",
+    "classroom_activity": "The teacher shows number cards and asks students to identify and match the numbers.",
+    "assessment_prompts": [
+      "Show a number and ask the student to identify it.",
+      "Ask the student to match a number with the correct quantity.",
+      "Ask the student to identify a number independently."
+    ]
+  },
+  "letter_recognition": {
+    "keywords": ["letter", "letters", "अक्षर", "वर्ण"],
+    "learning_objective": "Students will be able to recognise and identify the letters introduced in the lesson.",
+    "classroom_activity": "The teacher shows letter cards, pronounces each letter, and asks students to repeat and identify them.",
+    "assessment_prompts": [
+      "Show a letter and ask the student to identify it.",
+      "Ask the student to match the same letters.",
+      "Ask the student to identify a letter independently."
+    ]
+  }
+}
