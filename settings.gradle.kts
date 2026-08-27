@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Vistaar Setu"
 include(":app")
-project(":app").projectDir = file("vistaar-setu-main/android/app")
+project(":app").projectDir = file("android_ui/android/app")

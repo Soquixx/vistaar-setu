@@ -62,6 +62,7 @@ dependencies {
     // Retrofit
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
+    testImplementation("junit:junit:4.13.2")
 
     // Room Database
     implementation(libs.room.runtime)

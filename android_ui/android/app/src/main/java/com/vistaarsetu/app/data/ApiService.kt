@@ -23,18 +23,25 @@ data class ProcessLessonResponse(
 )
 
 interface ApiService {
-    @POST("lessons/process")
+    @POST("lesson/process")
     suspend fun processLesson(@Body request: ProcessLessonRequest): ProcessLessonResponse
 }
 
 object RetrofitClient {
-    // 10.0.2.2 routes emulator traffic directly to localhost where FastAPI runs
-    private const val BASE_URL = "http://10.0.2.2:8000/"
+    // ⚠️ REPLACE THIS WITH YOUR TEAMMATE'S ACTIVE NGROK URL (Keep trailing slash)
+    private const val BASE_URL = "https://xxxx.ngrok-free.app/"
 
     private val okHttpClient = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .readTimeout(10, TimeUnit.SECONDS)
-        .writeTimeout(5, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                // Bypass ngrok free tier browser warning page for mobile app requests
+                .addHeader("ngrok-skip-browser-warning", "true")
+                .build()
+            chain.proceed(request)
+        }
         .build()
 
     val apiService: ApiService by lazy {
@@ -44,6 +51,15 @@ object RetrofitClient {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ApiService::class.java)
+    }
+
+    /**
+     * Helper to construct full HTTP URL for ExoPlayer audio playback via ngrok
+     */
+    fun getFullAudioUrl(relativePath: String?): String? {
+        if (relativePath == null) return null
+        val cleanPath = relativePath.removePrefix("/")
+        return "$BASE_URL$cleanPath"
     }
 
     /**
