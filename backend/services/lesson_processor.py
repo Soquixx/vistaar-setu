@@ -26,10 +26,16 @@ class LessonProcessor:
             translated_text
         )
 
+        # Extract only the filename
+        filename = audio_file.replace("\\", "/").split("/")[-1]
+
+        # Create URL served by FastAPI
+        audio_url = f"/audio/{filename}"
+
         return {
             "source_text": text,
             "target_language": target_language,
             "translated_text": translated_text,
-            "audio_file": audio_file,
+            "audio_url": audio_url,
             "status": "success"
         }

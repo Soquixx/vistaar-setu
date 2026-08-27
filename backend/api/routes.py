@@ -63,6 +63,6 @@ def process_lesson(request: LessonProcessRequest):
         source_text=result["source_text"],
         target_language=result["target_language"],
         translated_text=result["translated_text"],
-        audio_file=result["audio_file"],
+        audio_url=result["audio_url"],
         status=result["status"]
     )
