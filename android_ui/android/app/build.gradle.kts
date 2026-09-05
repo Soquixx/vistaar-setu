@@ -15,12 +15,14 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -35,6 +37,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+
         freeCompilerArgs += listOf(
             "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
         )
@@ -46,12 +49,22 @@ android {
 }
 
 dependencies {
+
+    // ─────────────────────────────
+    // AndroidX
+    // ─────────────────────────────
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
 
-    // Jetpack Compose Foundation & UI
-    implementation(platform("androidx.compose:compose-bom:2024.02.01"))
+
+    // ─────────────────────────────
+    // Jetpack Compose
+    // ─────────────────────────────
+    implementation(
+        platform("androidx.compose:compose-bom:2024.02.01")
+    )
+
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
@@ -59,19 +72,42 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.8.2")
 
+
+    // ─────────────────────────────
     // Retrofit
+    // ─────────────────────────────
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
+
+
+    // ─────────────────────────────
+    // Unit Testing
+    // ─────────────────────────────
     testImplementation("junit:junit:4.13.2")
 
+
+    // ─────────────────────────────
+    // Android Instrumented Testing
+    // ─────────────────────────────
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    androidTestImplementation("androidx.test:core:1.6.1")
+
+
+    // ─────────────────────────────
     // Room Database
+    // ─────────────────────────────
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     kapt(libs.room.compiler)
 
-    // ExoPlayer
+
+    // ─────────────────────────────
+    // ExoPlayer / Media3
+    // ─────────────────────────────
     implementation(libs.media3.exoplayer)
 }
+
 
 kapt {
     correctErrorTypes = true
