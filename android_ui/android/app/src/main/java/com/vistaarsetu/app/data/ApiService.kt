@@ -18,7 +18,7 @@ data class ProcessLessonResponse(
     val source_text: String,
     val target_language: String,
     val translated_text: String,
-    val audio_file: String?,
+    val audio_url: String?,
     val status: String
 )
 
@@ -28,8 +28,8 @@ interface ApiService {
 }
 
 object RetrofitClient {
-    // ⚠️ REPLACE THIS WITH YOUR TEAMMATE'S ACTIVE NGROK URL (Keep trailing slash)
-    private const val BASE_URL = "https://xxxx.ngrok-free.app/"
+
+    private const val BASE_URL = "Ipv4"
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -68,7 +68,7 @@ object RetrofitClient {
     fun generateLocalFallback(request: ProcessLessonRequest): ProcessLessonResponse {
         val langCode = request.target_language.lowercase()
         val text = request.text.trim()
-        
+
         val translated = when {
             text.contains("गिनती") || text.contains("1") || text.contains("एक") -> {
                 "ᱢᱤᱫ (1), ᱵᱟᱨ (2), ᱯᱮ (3), ᱯᱩᱱ (4), ᱢᱚᱬᱮ (5), ᱛᱩᱨᱩᱭ (6), ᱮᱭᱟ (7) - ᱥᱟᱱᱛᱟᱲᱤ ᱞᱮᱠᱷᱟ (Santali Counting 1-7)"
@@ -95,7 +95,7 @@ object RetrofitClient {
             source_text = text,
             target_language = langDisplay,
             translated_text = translated,
-            audio_file = null,
+            audio_url = null,
             status = "success_offline_ai"
         )
     }

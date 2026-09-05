@@ -54,8 +54,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 
+import android.util.Log
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 
 import com.vistaarsetu.app.R
 import com.vistaarsetu.app.data.AppDatabase
@@ -2498,7 +2501,6 @@ fun ProcessStepRow(
 // ============================================================
 // 5. RESULT SCREEN
 // ============================================================
-
 @Composable
 fun ResultScreen(
     grade: String,
@@ -2507,15 +2509,9 @@ fun ResultScreen(
     onSave: () -> Unit,
     onHome: () -> Unit
 ) {
-
-    val context =
-        LocalContext.current
-
-    val clipboard =
-        LocalClipboardManager.current
-
-    val scope =
-        rememberCoroutineScope()
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
 
     var isPlaying by remember {
         mutableStateOf(false)
@@ -2529,51 +2525,121 @@ fun ResultScreen(
         mutableStateOf(false)
     }
 
+    // ------------------------------------------------------------
+    // EXOPLAYER
+    // ------------------------------------------------------------
 
-    val exoPlayer =
-        remember {
-            ExoPlayer.Builder(context)
-                .build()
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context)
+            .build()
+    }
+
+    // ------------------------------------------------------------
+    // EXOPLAYER LISTENER
+    // ------------------------------------------------------------
+
+    DisposableEffect(exoPlayer) {
+
+        val listener = object : Player.Listener {
+
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+
+                Log.d(
+                    "AUDIO_DEBUG",
+                    "ExoPlayer isPlaying = $playing"
+                )
+            }
+
+            override fun onPlaybackStateChanged(state: Int) {
+
+                when (state) {
+
+                    Player.STATE_IDLE -> {
+                        Log.d(
+                            "AUDIO_DEBUG",
+                            "Player state: IDLE"
+                        )
+                    }
+
+                    Player.STATE_BUFFERING -> {
+                        Log.d(
+                            "AUDIO_DEBUG",
+                            "Player state: BUFFERING"
+                        )
+                    }
+
+                    Player.STATE_READY -> {
+                        Log.d(
+                            "AUDIO_DEBUG",
+                            "Player state: READY"
+                        )
+                    }
+
+                    Player.STATE_ENDED -> {
+                        Log.d(
+                            "AUDIO_DEBUG",
+                            "Player state: ENDED"
+                        )
+
+                        isPlaying = false
+                    }
+                }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+
+                Log.e(
+                    "AUDIO_ERROR",
+                    "ExoPlayer playback failed",
+                    error
+                )
+
+                isPlaying = false
+
+                Toast.makeText(
+                    context,
+                    "Audio playback failed: ${error.message}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
 
-
-    DisposableEffect(Unit) {
+        exoPlayer.addListener(listener)
 
         onDispose {
+            exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
     }
 
 
+    // ============================================================
+    // UI
+    // ============================================================
+
     LazyColumn(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Color(0xFFF5F3FF)
-                )
-                .padding(horizontal = 20.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F3FF))
+            .padding(horizontal = 20.dp),
 
-        contentPadding =
-            PaddingValues(
-                top = 16.dp,
-                bottom = 24.dp
-            ),
+        contentPadding = PaddingValues(
+            top = 16.dp,
+            bottom = 24.dp
+        ),
 
-        verticalArrangement =
-            Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
 
-
-        // ------------------------------------------------------
+        // ========================================================
         // HEADER
-        // ------------------------------------------------------
+        // ========================================================
 
         item {
 
             Row(
-                modifier =
-                    Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
 
                 horizontalArrangement =
                     Arrangement.SpaceBetween,
@@ -2606,23 +2672,24 @@ fun ResultScreen(
                     )
                 }
 
-
                 IconButton(
                     onClick = onHome
                 ) {
 
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Close"
+
+                        contentDescription =
+                            "Close"
                     )
                 }
             }
         }
 
 
-        // ------------------------------------------------------
-        // HINDI
-        // ------------------------------------------------------
+        // ========================================================
+        // HINDI SOURCE TEXT
+        // ========================================================
 
         item {
 
@@ -2651,9 +2718,9 @@ fun ResultScreen(
         }
 
 
-        // ------------------------------------------------------
-        // TRANSLATION
-        // ------------------------------------------------------
+        // ========================================================
+        // TRANSLATED LESSON
+        // ========================================================
 
         item {
 
@@ -2687,23 +2754,21 @@ fun ResultScreen(
                             Color(0xFFDDD6FE)
                     )
 
-
                     Spacer(
                         modifier =
                             Modifier.height(10.dp)
                     )
 
-
                     Text(
-                        response?.translated_text
-                            ?: "",
+                        response?.translated_text ?: "",
 
                         fontSize = 16.sp,
 
                         fontWeight =
                             FontWeight.Bold,
 
-                        color = Color.White,
+                        color =
+                            Color.White,
 
                         lineHeight =
                             26.sp
@@ -2712,353 +2777,269 @@ fun ResultScreen(
             }
         }
 
-
-        // ------------------------------------------------------
-        // AUDIO PLAYER
-        // ------------------------------------------------------
+// ========================================================
+// AUDIO PLAYER
+// ========================================================
 
         item {
 
             Surface(
-                shape =
-                    RoundedCornerShape(24.dp),
-
+                shape = RoundedCornerShape(24.dp),
                 color = Color.White,
-
                 shadowElevation = 4.dp,
-
-                modifier =
-                    Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth()
             ) {
 
                 Column(
-                    modifier =
-                        Modifier.padding(20.dp),
-
-                    horizontalAlignment =
-                        Alignment.CenterHorizontally
+                    modifier = Modifier.padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
 
+                    // ------------------------------------------------
+                    // AUDIO HEADER
+                    // ------------------------------------------------
+
                     Row(
-                        modifier =
-                            Modifier.fillMaxWidth(),
-
-                        horizontalArrangement =
-                            Arrangement.SpaceBetween,
-
-                        verticalAlignment =
-                            Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
 
                         Row(
-                            verticalAlignment =
-                                Alignment.CenterVertically
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
 
                             Icon(
                                 Icons.Default.GraphicEq,
-
-                                contentDescription =
-                                    null,
-
-                                tint =
-                                    Color(0xFF7C3AED)
+                                contentDescription = null,
+                                tint = Color(0xFF7C3AED)
                             )
 
-                            Spacer(
-                                modifier =
-                                    Modifier.width(8.dp)
-                            )
+                            Spacer(modifier = Modifier.width(8.dp))
 
                             Text(
                                 "Santali Audio",
-
                                 fontSize = 14.sp,
-
-                                fontWeight =
-                                    FontWeight.Bold
+                                fontWeight = FontWeight.Bold
                             )
                         }
-
 
                         Text(
                             "${playbackSpeed}x",
-
                             fontSize = 12.sp,
-
-                            fontWeight =
-                                FontWeight.Bold,
-
-                            color =
-                                Color(0xFF7C3AED)
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF7C3AED)
                         )
                     }
 
 
-                    Spacer(
-                        modifier =
-                            Modifier.height(18.dp)
-                    )
+                    Spacer(modifier = Modifier.height(18.dp))
 
+
+                    // ------------------------------------------------
+                    // WAVEFORM
+                    // ------------------------------------------------
 
                     AudioWaveformVisualizer(
-                        isPlaying =
-                            isPlaying
+                        isPlaying = isPlaying
                     )
 
 
-                    Spacer(
-                        modifier =
-                            Modifier.height(18.dp)
-                    )
+                    Spacer(modifier = Modifier.height(18.dp))
 
+
+                    // ------------------------------------------------
+                    // CONTROLS
+                    // ------------------------------------------------
 
                     Row(
-                        modifier =
-                            Modifier.fillMaxWidth(),
-
-                        horizontalArrangement =
-                            Arrangement.SpaceEvenly,
-
-                        verticalAlignment =
-                            Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+
+                        // ============================================
+                        // SPEED
+                        // ============================================
 
                         IconButton(
                             onClick = {
+                                playbackSpeed = when (playbackSpeed) {
+                                    0.8f -> 1f
+                                    1f -> 1.25f
+                                    1.25f -> 1.5f
+                                    else -> 0.8f
+                                }
 
-                                playbackSpeed =
-                                    when (
-                                        playbackSpeed
-                                    ) {
-
-                                        0.8f -> 1f
-                                        1f -> 1.25f
-                                        1.25f -> 1.5f
-
-                                        else -> 0.8f
-                                    }
-
-                                exoPlayer.setPlaybackSpeed(
-                                    playbackSpeed
-                                )
+                                exoPlayer.setPlaybackSpeed(playbackSpeed)
                             }
                         ) {
-
                             Text(
                                 "${playbackSpeed}x",
-
-                                fontWeight =
-                                    FontWeight.Bold,
-
-                                color =
-                                    Color(0xFF7C3AED)
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF7C3AED)
                             )
                         }
 
+
+                        // ============================================
+                        // PLAY / PAUSE
+                        // ============================================
 
                         Surface(
                             shape = CircleShape,
+                            color = Color(0xFF7C3AED),
+                            shadowElevation = 6.dp,
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clickable {
 
-                            color =
-                                Color(0xFF7C3AED),
+                                    val rawPath = response?.audio_url
 
-                            shadowElevation =
-                                6.dp,
+                                    Log.d("AUDIO_DEBUG", "Raw audio_url = $rawPath")
 
-                            modifier =
-                                Modifier
-                                    .size(64.dp)
-                                    .clickable {
-
-                                        val rawPath =
-                                            response?.audio_file
-
-
-                                        if (
-                                            rawPath.isNullOrBlank()
-                                        ) {
-
-                                            Toast.makeText(
-                                                context,
-                                                "Audio is not available.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-
-                                            return@clickable
-                                        }
-
-
-                                        val audioUrl =
-                                            if (
-                                                rawPath.startsWith(
-                                                    "http://"
-                                                ) ||
-                                                rawPath.startsWith(
-                                                    "https://"
-                                                )
-                                            ) {
-
-                                                rawPath
-
-                                            } else {
-
-                                                RetrofitClient
-                                                    .getFullAudioUrl(
-                                                        rawPath
-                                                    )
-                                            }
-
-
-                                        if (
-                                            audioUrl.isNullOrBlank()
-                                        ) {
-
-                                            Toast.makeText(
-                                                context,
-                                                "Audio URL unavailable.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-
-                                            return@clickable
-                                        }
-
-
-                                        if (isPlaying) {
-
-                                            exoPlayer.pause()
-
-                                            isPlaying = false
-
-                                        } else {
-
-                                            exoPlayer.setMediaItem(
-                                                MediaItem.fromUri(
-                                                    audioUrl
-                                                )
-                                            )
-
-                                            exoPlayer.prepare()
-
-                                            exoPlayer.setPlaybackSpeed(
-                                                playbackSpeed
-                                            )
-
-                                            exoPlayer.play()
-
-                                            isPlaying = true
-                                        }
+                                    if (rawPath.isNullOrBlank()) {
+                                        Toast.makeText(
+                                            context,
+                                            "Audio is not available.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        return@clickable
                                     }
+
+                                    val audioUrl = if (
+                                        rawPath.startsWith("http://") ||
+                                        rawPath.startsWith("https://")
+                                    ) {
+                                        rawPath
+                                    } else {
+                                        RetrofitClient.getFullAudioUrl(rawPath)
+                                    }
+
+                                    Log.d("AUDIO_DEBUG", "Final audio URL = $audioUrl")
+
+                                    if (audioUrl.isNullOrBlank()) {
+                                        Toast.makeText(
+                                            context,
+                                            "Audio URL unavailable.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        return@clickable
+                                    }
+
+                                    // 1. If currently playing -> PAUSE
+                                    if (isPlaying) {
+                                        Log.d("AUDIO_DEBUG", "Pausing audio")
+                                        exoPlayer.pause()
+                                        return@clickable
+                                    }
+
+                                    // 2. If paused mid-track -> RESUME
+                                    if (exoPlayer.playbackState == Player.STATE_READY && !isPlaying) {
+                                        Log.d("AUDIO_DEBUG", "Resuming playback")
+
+                                        exoPlayer.play()
+                                        return@clickable
+                                    }
+
+                                    // 3. Otherwise -> START FRESH PLAYBACK
+                                    try {
+                                        Log.d("AUDIO_DEBUG", "Preparing and starting audio playback...")
+                                        exoPlayer.stop()
+                                        exoPlayer.clearMediaItems()
+
+                                        val mediaItem = MediaItem.fromUri(audioUrl)
+                                        exoPlayer.setMediaItem(mediaItem)
+                                        exoPlayer.setPlaybackSpeed(playbackSpeed)
+                                        exoPlayer.prepare()
+                                        exoPlayer.play()
+
+                                    } catch (e: Exception) {
+                                        Log.e("AUDIO_ERROR", "Failed to start ExoPlayer", e)
+                                        isPlaying = false
+                                        Toast.makeText(
+                                            context,
+                                            "Could not play audio: ${e.message}",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
                         ) {
-
                             Box(
-                                contentAlignment =
-                                    Alignment.Center
+                                contentAlignment = Alignment.Center
                             ) {
-
                                 Icon(
-                                    if (isPlaying)
+                                    imageVector = if (isPlaying)
                                         Icons.Default.Pause
                                     else
                                         Icons.Default.PlayArrow,
-
-                                    contentDescription =
-                                        if (isPlaying)
-                                            "Pause"
-                                        else
-                                            "Play",
-
-                                    tint =
-                                        Color.White,
-
-                                    modifier =
-                                        Modifier.size(36.dp)
+                                    contentDescription = if (isPlaying) "Pause" else "Play",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
                                 )
                             }
                         }
 
 
+                        // ============================================
+                        // SHARE
+                        // ============================================
+
                         IconButton(
                             onClick = {
-
-                                val shareIntent =
-                                    Intent(
-                                        Intent.ACTION_SEND
-                                    ).apply {
-
-                                        type =
-                                            "text/plain"
-
-                                        putExtra(
-                                            Intent.EXTRA_SUBJECT,
-                                            "Vistaar Setu Lesson"
-                                        )
-
-                                        putExtra(
-                                            Intent.EXTRA_TEXT,
-
-                                            "Hindi: ${response?.source_text}\n\n" +
-                                                    "Translated: ${response?.translated_text}"
-                                        )
-                                    }
-
+                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(
+                                        Intent.EXTRA_SUBJECT,
+                                        "Vistaar Setu Lesson"
+                                    )
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        "Hindi: ${response?.source_text}\n\n" +
+                                                "Translated: ${response?.translated_text}"
+                                    )
+                                }
 
                                 context.startActivity(
-                                    Intent.createChooser(
-                                        shareIntent,
-                                        "Share Lesson"
-                                    )
+                                    Intent.createChooser(shareIntent, "Share Lesson")
                                 )
                             }
                         ) {
-
                             Icon(
                                 Icons.Default.Share,
-
-                                contentDescription =
-                                    "Share",
-
-                                tint =
-                                    Color(0xFF6B7280)
+                                contentDescription = "Share",
+                                tint = Color(0xFF6B7280)
                             )
                         }
                     }
 
 
-                    Spacer(
-                        modifier =
-                            Modifier.height(10.dp)
-                    )
+                    Spacer(modifier = Modifier.height(10.dp))
 
+
+                    // ------------------------------------------------
+                    // AUDIO STATUS
+                    // ------------------------------------------------
 
                     Text(
-                        if (
-                            response?.audio_file
-                                .isNullOrBlank()
-                        )
-                            "Audio unavailable"
-                        else
-                            "Santali audio ready",
-
+                        text = when {
+                            response?.audio_url.isNullOrBlank() -> "Audio unavailable"
+                            isPlaying -> "Playing Santali audio"
+                            else -> "Santali audio ready"
+                        },
                         fontSize = 11.sp,
-
-                        color =
-                            if (
-                                response?.audio_file
-                                    .isNullOrBlank()
-                            )
-                                Color(0xFFEF4444)
-                            else
-                                Color(0xFF10B981)
+                        color = when {
+                            response?.audio_url.isNullOrBlank() -> Color(0xFFEF4444)
+                            isPlaying -> Color(0xFF7C3AED)
+                            else -> Color(0xFF10B981)
+                        }
                     )
                 }
             }
         }
-
-
-        // ------------------------------------------------------
-        // SAVE
-        // ------------------------------------------------------
+        // ========================================================
+        // SAVE / NEW LESSON
+        // ========================================================
 
         item {
 
@@ -3069,6 +3050,10 @@ fun ResultScreen(
                 horizontalArrangement =
                     Arrangement.spacedBy(12.dp)
             ) {
+
+                // ------------------------------------------------
+                // SAVE OFFLINE
+                // ------------------------------------------------
 
                 Button(
                     onClick = {
@@ -3081,12 +3066,8 @@ fun ResultScreen(
                                 )
 
 
-                            // IMPORTANT:
-                            // Store a usable URL instead of
-                            // backend's local file path.
-
                             val savedAudioUrl =
-                                response?.audio_file?.let {
+                                response?.audio_url?.let {
 
                                     if (
                                         it.startsWith(
@@ -3120,6 +3101,7 @@ fun ResultScreen(
 
                                         grade =
                                             grade,
+
                                         subject =
                                             "General",
 
@@ -3168,6 +3150,7 @@ fun ResultScreen(
 
                     colors =
                         ButtonDefaults.buttonColors(
+
                             containerColor =
                                 if (isSaved)
                                     Color(0xFF10B981)
@@ -3203,6 +3186,10 @@ fun ResultScreen(
                 }
 
 
+                // ------------------------------------------------
+                // NEW LESSON
+                // ------------------------------------------------
+
                 OutlinedButton(
                     onClick =
                         onHome,
@@ -3230,7 +3217,6 @@ fun ResultScreen(
         }
     }
 }
-
 
 // ============================================================
 // LESSON TEXT CARD
