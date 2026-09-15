@@ -5,6 +5,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.POST
+import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
 
 data class ProcessLessonRequest(
@@ -19,7 +20,8 @@ data class ProcessLessonResponse(
     val target_language: String,
     val translated_text: String,
     val audio_url: String?,
-    val status: String
+    val status: String,
+    val localAudioPath: String? = null
 )
 
 interface ApiService {
@@ -29,7 +31,8 @@ interface ApiService {
 
 object RetrofitClient {
 
-    private const val BASE_URL = "Ipv4"
+    private const val BASE_URL = "IPv4 address"
+
 
     private val okHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)

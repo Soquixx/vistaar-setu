@@ -42,6 +42,9 @@ interface LessonDao {
 
     @Delete
     suspend fun deleteLesson(lesson: SavedLesson)
+
+    @Query("""SELECT * FROM saved_lessons WHERE hindiText = :hindiText AND targetLanguage = :language LIMIT 1""")
+    suspend fun findCachedLesson(hindiText: String, language: String): SavedLesson?
 }
 
 @Database(entities = [SavedLesson::class], version = 2, exportSchema = false)

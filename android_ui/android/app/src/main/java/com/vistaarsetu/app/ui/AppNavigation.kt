@@ -2,6 +2,8 @@ package com.vistaarsetu.app.ui
 
 import android.Manifest
 import android.app.Activity
+import android.net.Uri
+import java.io.File
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -70,16 +72,14 @@ import com.vistaarsetu.app.data.SavedLesson
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
+import com.vistaarsetu.app.data.AudioCacheManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 
-// ============================================================
 // SCREEN ROUTING
-// ============================================================
-
 enum class Screen {
     WELCOME,
     HOME,
@@ -89,7 +89,6 @@ enum class Screen {
     SAVED_LESSONS,
     NOTIFICATIONS
 }
-
 
 // ============================================================
 // MAIN NAVIGATION
@@ -2894,9 +2893,58 @@ fun ResultScreen(
                                 .size(64.dp)
                                 .clickable {
 
-                                    val rawPath = response?.audio_url
+                                    // 1. If currently playing -> PAUSE
+                                    if (isPlaying) {
+                                        Log.d("AUDIO_DEBUG", "Pausing audio")
+                                        exoPlayer.pause()
+                                        return@clickable
+                                    }
 
-                                    Log.d("AUDIO_DEBUG", "Raw audio_url = $rawPath")
+                                    // 2. If paused mid-track -> RESUME
+                                    if (exoPlayer.playbackState == Player.STATE_READY && !isPlaying) {
+                                        Log.d("AUDIO_DEBUG", "Resuming playback")
+                                        exoPlayer.play()
+                                        return@clickable
+                                    }
+
+                                    // 3. FIRST: Try local Android audio
+                                    val localPath = response?.localAudioPath
+
+                                    if (
+                                        !localPath.isNullOrBlank() &&
+                                        AudioCacheManager.isAvailable(localPath)
+                                    ) {
+                                        try {
+                                            Log.d(
+                                                "AUDIO_DEBUG",
+                                                "Playing LOCAL audio: $localPath"
+                                            )
+
+                                            exoPlayer.stop()
+                                            exoPlayer.clearMediaItems()
+
+                                            val mediaItem = MediaItem.fromUri(
+                                                Uri.fromFile(File(localPath))
+                                            )
+
+                                            exoPlayer.setMediaItem(mediaItem)
+                                            exoPlayer.setPlaybackSpeed(playbackSpeed)
+                                            exoPlayer.prepare()
+                                            exoPlayer.play()
+
+                                            return@clickable
+
+                                        } catch (e: Exception) {
+                                            Log.e(
+                                                "AUDIO_ERROR",
+                                                "Failed to play local audio",
+                                                e
+                                            )
+                                        }
+                                    }
+
+                                    // 4. If local audio is unavailable, use FastAPI audio
+                                    val rawPath = response?.audio_url
 
                                     if (rawPath.isNullOrBlank()) {
                                         Toast.makeText(
@@ -2916,8 +2964,6 @@ fun ResultScreen(
                                         RetrofitClient.getFullAudioUrl(rawPath)
                                     }
 
-                                    Log.d("AUDIO_DEBUG", "Final audio URL = $audioUrl")
-
                                     if (audioUrl.isNullOrBlank()) {
                                         Toast.makeText(
                                             context,
@@ -2927,36 +2973,31 @@ fun ResultScreen(
                                         return@clickable
                                     }
 
-                                    // 1. If currently playing -> PAUSE
-                                    if (isPlaying) {
-                                        Log.d("AUDIO_DEBUG", "Pausing audio")
-                                        exoPlayer.pause()
-                                        return@clickable
-                                    }
-
-                                    // 2. If paused mid-track -> RESUME
-                                    if (exoPlayer.playbackState == Player.STATE_READY && !isPlaying) {
-                                        Log.d("AUDIO_DEBUG", "Resuming playback")
-
-                                        exoPlayer.play()
-                                        return@clickable
-                                    }
-
-                                    // 3. Otherwise -> START FRESH PLAYBACK
                                     try {
-                                        Log.d("AUDIO_DEBUG", "Preparing and starting audio playback...")
+                                        Log.d(
+                                            "AUDIO_DEBUG",
+                                            "Playing BACKEND audio: $audioUrl"
+                                        )
+
                                         exoPlayer.stop()
                                         exoPlayer.clearMediaItems()
 
                                         val mediaItem = MediaItem.fromUri(audioUrl)
+
                                         exoPlayer.setMediaItem(mediaItem)
                                         exoPlayer.setPlaybackSpeed(playbackSpeed)
                                         exoPlayer.prepare()
                                         exoPlayer.play()
 
                                     } catch (e: Exception) {
-                                        Log.e("AUDIO_ERROR", "Failed to start ExoPlayer", e)
+                                        Log.e(
+                                            "AUDIO_ERROR",
+                                            "Failed to start backend audio",
+                                            e
+                                        )
+
                                         isPlaying = false
+
                                         Toast.makeText(
                                             context,
                                             "Could not play audio: ${e.message}",
@@ -3023,15 +3064,31 @@ fun ResultScreen(
 
                     Text(
                         text = when {
-                            response?.audio_url.isNullOrBlank() -> "Audio unavailable"
                             isPlaying -> "Playing Santali audio"
-                            else -> "Santali audio ready"
+
+                            !response?.localAudioPath.isNullOrBlank() &&
+                                    AudioCacheManager.isAvailable(response.localAudioPath) ->
+                                "Offline audio ready"
+
+                            !response?.audio_url.isNullOrBlank() ->
+                                "Santali audio ready"
+
+                            else ->
+                                "Audio unavailable"
                         },
                         fontSize = 11.sp,
                         color = when {
-                            response?.audio_url.isNullOrBlank() -> Color(0xFFEF4444)
                             isPlaying -> Color(0xFF7C3AED)
-                            else -> Color(0xFF10B981)
+
+                            !response?.localAudioPath.isNullOrBlank() &&
+                                    AudioCacheManager.isAvailable(response.localAudioPath) ->
+                                Color(0xFF10B981)
+
+                            !response?.audio_url.isNullOrBlank() ->
+                                Color(0xFF10B981)
+
+                            else ->
+                                Color(0xFFEF4444)
                         }
                     )
                 }
@@ -3087,6 +3144,14 @@ fun ResultScreen(
                                     }
                                 }
 
+                            val localAudioPath =
+                                savedAudioUrl?.let { audioUrl ->
+                                    AudioCacheManager.downloadAudio(
+                                        context = context,
+                                        audioUrl = audioUrl
+                                    )
+                                }
+
 
                             db.lessonDao()
                                 .insertLesson(
@@ -3119,6 +3184,8 @@ fun ResultScreen(
                                             response
                                                 ?.translated_text
                                                 ?: "",
+                                        localAudioPath =
+                                            localAudioPath,
 
                                         remoteAudioUrl =
                                             savedAudioUrl
@@ -4009,18 +4076,25 @@ fun SavedLessonCard(
                         IconButton(
 
                             onClick = {
+                                val localPath = lesson.localAudioPath
+                                val remoteUrl = lesson.remoteAudioUrl
 
-                                val url =
-                                    lesson.remoteAudioUrl
+                                val audioUrl = when {
+                                    AudioCacheManager.isAvailable(localPath) -> {
+                                        android.net.Uri.fromFile(
+                                            java.io.File(localPath!!)
+                                        )
+                                    }
+                                    !remoteUrl.isNullOrBlank() -> {
+                                        android.net.Uri.parse(remoteUrl)
+                                    }
+                                    else -> null
+                                }
 
-
-                                if (
-                                    url.isNullOrBlank()
-                                ) {
-
+                                if(audioUrl == null) {
                                     Toast.makeText(
                                         context,
-                                        "Audio unavailable",
+                                        "Audio Unavailable",
                                         Toast.LENGTH_SHORT
                                     ).show()
 
@@ -4039,7 +4113,7 @@ fun SavedLessonCard(
 
                                     player.setMediaItem(
                                         MediaItem.fromUri(
-                                            url.toString()
+                                            audioUrl
                                         )
                                     )
 
