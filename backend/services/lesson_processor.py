@@ -4,9 +4,11 @@ from services.tts import TTSService
 
 class LessonProcessor:
 
-    def __init__(self):
-        self.translation_service = TranslationService()
+    
+    def __init__(self, translation_service: TranslationService = None):
+        self.translation_service = translation_service or TranslationService()
         self.tts_service = TTSService()
+    
 
     def process(
         self,

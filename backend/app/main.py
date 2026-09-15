@@ -1,3 +1,11 @@
+import os
+
+os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["MKL_NUM_THREADS"] = "4"
+
+import torch
+
+torch.set_num_threads(4)
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 

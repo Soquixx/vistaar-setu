@@ -90,7 +90,8 @@ class TTSService:
 
             generation = self.model.generate(
                 input_ids=description_input_ids,
-                prompt_input_ids=prompt_input_ids
+                prompt_input_ids=prompt_input_ids,
+                max_new_tokens=min(1000, 50 * len(text.split()))
             )
 
         # Convert generated tensor to NumPy

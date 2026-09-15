@@ -80,7 +80,7 @@ class TranslationService:
                 **inputs,
                 use_cache=True,
                 max_length=256,
-                num_beams=5,
+                num_beams=1,
                 num_return_sequences=1
             )
 

@@ -1,5 +1,6 @@
+import threading
 from fastapi import APIRouter
-
+inference_lock = threading.Lock()
 from schemas.lesson import (
     TranslationRequest,
     TranslationResponse,
@@ -14,7 +15,9 @@ from services.lesson_processor import LessonProcessor
 router = APIRouter()
 
 translation_service = TranslationService()
-lesson_processor = LessonProcessor()
+lesson_processor = LessonProcessor(
+    translation_service=translation_service
+)
 
 
 @router.post(
@@ -53,11 +56,11 @@ def translate_lesson(request: TranslationRequest):
     response_model=LessonProcessResponse
 )
 def process_lesson(request: LessonProcessRequest):
-
-    result = lesson_processor.process(
-        text=request.text,
-        target_language=request.target_language
-    )
+    with inference_lock:
+        result = lesson_processor.process(
+            text=request.text,
+            target_language=request.target_language
+        )
 
     return LessonProcessResponse(
         source_text=result["source_text"],
