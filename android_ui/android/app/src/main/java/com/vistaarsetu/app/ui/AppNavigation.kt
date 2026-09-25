@@ -68,6 +68,8 @@ import com.vistaarsetu.app.data.ProcessLessonRequest
 import com.vistaarsetu.app.data.ProcessLessonResponse
 import com.vistaarsetu.app.data.RetrofitClient
 import com.vistaarsetu.app.data.SavedLesson
+import com.vistaarsetu.app.data.LessonRepository
+import com.vistaarsetu.app.data.LessonEntity
 
 import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.asImageBitmap
@@ -78,21 +80,32 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import com.vistaarsetu.app.ui.player.PlayerScreen
+import com.vistaarsetu.app.ui.lessons.LessonDetailScreen
+import com.vistaarsetu.app.ui.flashcards.FlashcardScreen
+import com.vistaarsetu.app.ui.worksheets.WorksheetScreen
+import com.vistaarsetu.app.ui.correction.TeacherCorrectionScreen
+import com.vistaarsetu.app.ui.voice.VoiceInputScreen
+import com.vistaarsetu.app.data.OfflineLessonUnavailableException
 
 // SCREEN ROUTING
 enum class Screen {
     WELCOME,
     HOME,
+    VOICE_INPUT,
+    PLAYER,
+    SAVED_LESSONS,
     NEW_LESSON,
     PROCESSING,
     RESULT,
-    SAVED_LESSONS,
+    LESSON_DETAIL,
+    FLASHCARDS,
+    WORKSHEETS,
+    CORRECTION,
     NOTIFICATIONS
 }
 
-// ============================================================
 // MAIN NAVIGATION
-// ============================================================
 
 @Composable
 fun MainAppNavigation() {
@@ -123,15 +136,16 @@ fun MainAppNavigation() {
         mutableStateOf<ProcessLessonResponse?>(null)
     }
 
+    var selectedDetailLesson by remember {
+        mutableStateOf<LessonEntity?>(null)
+    }
 
     Scaffold(
         bottomBar = {
-
             if (
                 currentScreen != Screen.WELCOME &&
                 currentScreen != Screen.PROCESSING
             ) {
-
                 VistaarBottomNavigationBar(
                     currentScreen = currentScreen,
                     onScreenSelected = {
@@ -140,9 +154,7 @@ fun MainAppNavigation() {
                 )
             }
         },
-
         containerColor = Color(0xFFF5F3FF)
-
     ) { innerPadding ->
 
         Box(
@@ -150,15 +162,10 @@ fun MainAppNavigation() {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-
             when (currentScreen) {
 
-                // ------------------------------------------------
                 // WELCOME
-                // ------------------------------------------------
-
                 Screen.WELCOME -> {
-
                     WelcomeScreen(
                         onGetStarted = {
                             currentScreen = Screen.HOME
@@ -166,146 +173,190 @@ fun MainAppNavigation() {
                     )
                 }
 
-
-                // ------------------------------------------------
                 // HOME
-                // ------------------------------------------------
-
                 Screen.HOME -> {
-
                     HomeScreen(
                         onNewLesson = {
-                            currentScreen = Screen.NEW_LESSON
+                            currentScreen = Screen.VOICE_INPUT
                         },
-
                         onViewSaved = {
                             currentScreen = Screen.SAVED_LESSONS
                         },
-
                         onPlayRecent = {
-
-                            inputHindiText =
-                                "गिनो: एक, दो, तीन, चार, पाँच\nCount: 1, 2, 3, 4, 5"
-
-                            currentScreen = Screen.PROCESSING
+                            currentScreen = Screen.PLAYER
                         },
-
                         onOpenNotifications = {
                             currentScreen = Screen.NOTIFICATIONS
+                        },
+                        onSearchClicked = {
+                            currentScreen = Screen.SAVED_LESSONS
                         }
                     )
                 }
 
+                // VOICE INPUT (Dedicated Screen)
+                Screen.VOICE_INPUT -> {
+                    VoiceInputScreen(
+                        grade = inputGrade,
+                        onGradeChange = { inputGrade = it },
+                        area = inputArea,
+                        onAreaChange = { inputArea = it },
+                        lang = inputLang,
+                        onLangChange = { inputLang = it },
+                        text = inputHindiText,
+                        onTextChange = { inputHindiText = it },
+                        onGenerate = { currentScreen = Screen.PROCESSING }
+                    )
+                }
 
-                // ------------------------------------------------
-                // NEW LESSON
-                // ------------------------------------------------
+                // PLAYER (Dedicated Screen)
+                Screen.PLAYER -> {
+                    PlayerScreen(
+                        initialLessonId = selectedDetailLesson?.id,
+                        onBack = { currentScreen = Screen.HOME }
+                    )
+                }
 
+                // NEW LESSON (Internal legacy entry point)
                 Screen.NEW_LESSON -> {
-
                     NewLessonScreen(
                         grade = inputGrade,
-                        onGradeChange = {
-                            inputGrade = it
-                        },
-
+                        onGradeChange = { inputGrade = it },
                         area = inputArea,
-                        onAreaChange = {
-                            inputArea = it
-                        },
-
+                        onAreaChange = { inputArea = it },
                         lang = inputLang,
-                        onLangChange = {
-                            inputLang = it
-                        },
-
+                        onLangChange = { inputLang = it },
                         text = inputHindiText,
-                        onTextChange = {
-                            inputHindiText = it
-                        },
-
-                        onBack = {
-                            currentScreen = Screen.HOME
-                        },
-
-                        onGenerate = {
-                            currentScreen = Screen.PROCESSING
-                        }
+                        onTextChange = { inputHindiText = it },
+                        onBack = { currentScreen = Screen.HOME },
+                        onGenerate = { currentScreen = Screen.PROCESSING }
                     )
                 }
 
-
-                // ------------------------------------------------
                 // PROCESSING
-                // ------------------------------------------------
-
                 Screen.PROCESSING -> {
-
                     ProcessingScreen(
                         grade = inputGrade,
                         area = inputArea,
                         lang = inputLang,
                         text = inputHindiText,
-
                         onSuccess = { response ->
-
                             lastResponse = response
-
                             currentScreen = Screen.RESULT
+                        },
+                        onBackToLibrary = {
+                            currentScreen = Screen.SAVED_LESSONS
+                        },
+                        onBackToInput = {
+                            currentScreen = Screen.VOICE_INPUT
                         }
                     )
                 }
 
-
-                // ------------------------------------------------
                 // RESULT
-                // ------------------------------------------------
-
                 Screen.RESULT -> {
-
                     ResultScreen(
                         grade = inputGrade,
                         subject = inputArea,
                         response = lastResponse,
-
                         onSave = {
                             currentScreen = Screen.SAVED_LESSONS
                         },
-
                         onHome = {
                             currentScreen = Screen.HOME
                         }
                     )
                 }
 
-
-                // ------------------------------------------------
                 // OFFLINE LIBRARY
-                // ------------------------------------------------
-
                 Screen.SAVED_LESSONS -> {
-
                     SavedLessonsScreen(
                         onBackHome = {
                             currentScreen = Screen.HOME
+                        },
+                        onReadFullLesson = { lesson ->
+                            selectedDetailLesson = lesson
+                            currentScreen = Screen.LESSON_DETAIL
                         }
                     )
                 }
 
+                // LESSON DETAIL (Full lesson view)
+                Screen.LESSON_DETAIL -> {
+                    val lesson = selectedDetailLesson
+                    if (lesson != null) {
+                        LessonDetailScreen(
+                            lesson = lesson,
+                            onBack = { currentScreen = Screen.SAVED_LESSONS },
+                            onOpenFlashcards = {
+                                selectedDetailLesson = it
+                                currentScreen = Screen.FLASHCARDS
+                            },
+                            onOpenWorksheet = {
+                                selectedDetailLesson = it
+                                currentScreen = Screen.WORKSHEETS
+                            },
+                            onOpenCorrection = {
+                                selectedDetailLesson = it
+                                currentScreen = Screen.CORRECTION
+                            }
+                        )
+                    } else {
+                        currentScreen = Screen.SAVED_LESSONS
+                    }
+                }
 
-                // ------------------------------------------------
+                // FLASHCARDS
+                Screen.FLASHCARDS -> {
+                    val lesson = selectedDetailLesson
+                    if (lesson != null) {
+                        FlashcardScreen(
+                            lesson = lesson,
+                            onBack = { currentScreen = Screen.LESSON_DETAIL }
+                        )
+                    } else {
+                        currentScreen = Screen.SAVED_LESSONS
+                    }
+                }
+
+                // WORKSHEETS
+                Screen.WORKSHEETS -> {
+                    val lesson = selectedDetailLesson
+                    if (lesson != null) {
+                        WorksheetScreen(
+                            lesson = lesson,
+                            onBack = { currentScreen = Screen.LESSON_DETAIL }
+                        )
+                    } else {
+                        currentScreen = Screen.SAVED_LESSONS
+                    }
+                }
+
+                // TEACHER CORRECTION
+                Screen.CORRECTION -> {
+                    val lesson = selectedDetailLesson
+                    if (lesson != null) {
+                        TeacherCorrectionScreen(
+                            lesson = lesson,
+                            onBack = { currentScreen = Screen.LESSON_DETAIL },
+                            onCorrectionSaved = { updated ->
+                                selectedDetailLesson = updated
+                                currentScreen = Screen.LESSON_DETAIL
+                            }
+                        )
+                    } else {
+                        currentScreen = Screen.SAVED_LESSONS
+                    }
+                }
+
                 // NOTIFICATIONS
-                // ------------------------------------------------
-
                 Screen.NOTIFICATIONS -> {
-
                     NotificationsScreen(
                         onBack = {
                             currentScreen = Screen.HOME
                         },
-
                         onLearnNewLesson = {
-                            currentScreen = Screen.NEW_LESSON
+                            currentScreen = Screen.VOICE_INPUT
                         }
                     )
                 }
@@ -314,17 +365,13 @@ fun MainAppNavigation() {
     }
 }
 
-
-// ============================================================
 // BOTTOM NAVIGATION
-// ============================================================
 
 @Composable
 fun VistaarBottomNavigationBar(
     currentScreen: Screen,
     onScreenSelected: (Screen) -> Unit
 ) {
-
     Surface(
         color = Color.White,
         shadowElevation = 12.dp,
@@ -335,26 +382,23 @@ fun VistaarBottomNavigationBar(
             )
         )
     ) {
-
         NavigationBar(
             containerColor = Color.White,
             tonalElevation = 0.dp,
             modifier = Modifier.height(64.dp)
         ) {
-
+            // 1. HOME
             NavigationBarItem(
                 selected = currentScreen == Screen.HOME,
                 onClick = {
                     onScreenSelected(Screen.HOME)
                 },
-
                 icon = {
                     Icon(
                         Icons.Default.Home,
                         contentDescription = "Home"
                     )
                 },
-
                 label = {
                     Text(
                         "Home",
@@ -363,20 +407,18 @@ fun VistaarBottomNavigationBar(
                 }
             )
 
-
+            // 2. VOICE INPUT
             NavigationBarItem(
-                selected = currentScreen == Screen.NEW_LESSON,
+                selected = currentScreen == Screen.VOICE_INPUT || currentScreen == Screen.NEW_LESSON,
                 onClick = {
-                    onScreenSelected(Screen.NEW_LESSON)
+                    onScreenSelected(Screen.VOICE_INPUT)
                 },
-
                 icon = {
                     Icon(
                         Icons.Default.Mic,
                         contentDescription = "Voice Input"
                     )
                 },
-
                 label = {
                     Text(
                         "Voice Input",
@@ -385,20 +427,18 @@ fun VistaarBottomNavigationBar(
                 }
             )
 
-
+            // 3. PLAYER
             NavigationBarItem(
-                selected = currentScreen == Screen.RESULT,
+                selected = currentScreen == Screen.PLAYER,
                 onClick = {
-                    onScreenSelected(Screen.RESULT)
+                    onScreenSelected(Screen.PLAYER)
                 },
-
                 icon = {
                     Icon(
                         Icons.Default.Headphones,
                         contentDescription = "Player"
                     )
                 },
-
                 label = {
                     Text(
                         "Player",
@@ -407,20 +447,22 @@ fun VistaarBottomNavigationBar(
                 }
             )
 
-
+            // 4. LIBRARY
             NavigationBarItem(
-                selected = currentScreen == Screen.SAVED_LESSONS,
+                selected = currentScreen == Screen.SAVED_LESSONS ||
+                        currentScreen == Screen.LESSON_DETAIL ||
+                        currentScreen == Screen.FLASHCARDS ||
+                        currentScreen == Screen.WORKSHEETS ||
+                        currentScreen == Screen.CORRECTION,
                 onClick = {
                     onScreenSelected(Screen.SAVED_LESSONS)
                 },
-
                 icon = {
                     Icon(
                         Icons.Default.Folder,
                         contentDescription = "Library"
                     )
                 },
-
                 label = {
                     Text(
                         "Library",
@@ -432,10 +474,7 @@ fun VistaarBottomNavigationBar(
     }
 }
 
-
-// ============================================================
 // 1. WELCOME SCREEN
-// ============================================================
 
 @Composable
 fun WelcomeScreen(
@@ -461,11 +500,7 @@ fun WelcomeScreen(
             modifier = Modifier.height(10.dp)
         )
 
-
-        // ------------------------------------------------------
         // ACTUAL VISTAAR SETU LOGO
-        // ------------------------------------------------------
-
         ImageCard(
             imageRes = R.drawable.logo_vistaar_setu,
             contentDescription = "Vistaar Setu Logo",
@@ -479,10 +514,7 @@ fun WelcomeScreen(
             modifier = Modifier.height(16.dp)
         )
 
-
-        // ------------------------------------------------------
         // ACTUAL CLASSROOM ILLUSTRATION
-        // ------------------------------------------------------
 
         AsyncImageCard(
             imageRes = R.drawable.illustration_classroom,
@@ -492,11 +524,9 @@ fun WelcomeScreen(
                 .height(260.dp)
         )
 
-
         Spacer(
             modifier = Modifier.height(20.dp)
         )
-
 
         Text(
             "Connecting Classrooms\nwith Local Languages",
@@ -534,12 +564,7 @@ fun WelcomeScreen(
         Spacer(
             modifier = Modifier.height(28.dp)
         )
-
-
-        // ------------------------------------------------------
         // GET STARTED
-        // ------------------------------------------------------
-
         Button(
             onClick = onGetStarted,
 
@@ -589,10 +614,7 @@ fun WelcomeScreen(
     }
 }
 
-
-// ============================================================
 // IMAGE CARD
-// ============================================================
 
 @Composable
 fun ImageCard(
@@ -633,10 +655,8 @@ fun ImageCard(
 }
 
 
-// ============================================================
 // ASYNC IMAGE CARD  (decodes bitmap on IO thread to avoid
 // main-thread jank for large PNGs like illustration_classroom)
-// ============================================================
 
 @Composable
 fun AsyncImageCard(
@@ -691,77 +711,97 @@ fun AsyncImageCard(
     }
 }
 
-
-// ============================================================
 // 2. HOME SCREEN
-// ============================================================
 
 @Composable
 fun HomeScreen(
     onNewLesson: () -> Unit,
     onViewSaved: () -> Unit,
     onPlayRecent: () -> Unit,
-    onOpenNotifications: () -> Unit
+    onOpenNotifications: () -> Unit,
+    onSearchClicked: () -> Unit = onViewSaved
 ) {
+    var showLanguageInfoDialog by remember { mutableStateOf(false) }
+
+    if (showLanguageInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showLanguageInfoDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showLanguageInfoDialog = false }) {
+                    Text("Close", color = Color(0xFF7C3AED), fontWeight = FontWeight.Bold)
+                }
+            },
+            title = {
+                Text(
+                    "Supported Indigenous Languages",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1E1B4B)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Vistaar Setu empowers vernacular pedagogy for tribal education:",
+                        fontSize = 12.sp,
+                        color = Color(0xFF4B5563)
+                    )
+                    Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFF3F0FF), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text("1. Santali (ᱥᱟᱱᱛᱟᱲᱤ)", fontWeight = FontWeight.Bold, color = Color(0xFF7C3AED), fontSize = 12.sp)
+                            Text("Official Script: Ol Chiki (ᱚᱞ ᱪᱤᱠᱤ). Used across Jharkhand, Odisha, and West Bengal for primary FLN.", fontSize = 11.sp, color = Color(0xFF4B5563))
+                        }
+                    }
+                    Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFF3F0FF), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text("2. Ho (Warang Citi 𑢹𑣏)", fontWeight = FontWeight.Bold, color = Color(0xFF7C3AED), fontSize = 12.sp)
+                            Text("Official Script: Warang Citi. Preserves Kolhan tribal language heritage.", fontSize = 11.sp, color = Color(0xFF4B5563))
+                        }
+                    }
+                    Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFF3F0FF), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(8.dp)) {
+                            Text("3. Mundari (Mundari Bani)", fontWeight = FontWeight.Bold, color = Color(0xFF7C3AED), fontSize = 12.sp)
+                            Text("Official Script: Mundari Bani. Mother-tongue foundation for Munda learners.", fontSize = 11.sp, color = Color(0xFF4B5563))
+                        }
+                    }
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 20.dp),
-
         contentPadding = PaddingValues(
             top = 16.dp,
             bottom = 24.dp
         ),
-
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-
-
-        // ------------------------------------------------------
         // HEADER
-        // ------------------------------------------------------
-
         item {
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-
                 verticalAlignment = Alignment.CenterVertically,
-
-                horizontalArrangement =
-                    Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-
-                Row(
-                    verticalAlignment =
-                        Alignment.CenterVertically
-                ) {
-
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     ImageCard(
-                        imageRes =
-                            R.drawable.logo_vistaar_setu,
-
-                        contentDescription =
-                            "Vistaar Setu",
-
-                        modifier = Modifier
-                            .size(52.dp)
+                        imageRes = R.drawable.logo_vistaar_setu,
+                        contentDescription = "Vistaar Setu",
+                        modifier = Modifier.size(52.dp)
                     )
-
-                    Spacer(
-                        modifier = Modifier.width(10.dp)
-                    )
-
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column {
-
                         Text(
                             "Vistaar Setu",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF1E1B4B)
                         )
-
                         Text(
                             "Bridging Languages",
                             fontSize = 11.sp,
@@ -770,314 +810,170 @@ fun HomeScreen(
                     }
                 }
 
-
                 Box {
-
-                    IconButton(
-                        onClick =
-                            onOpenNotifications
-                    ) {
-
+                    IconButton(onClick = onOpenNotifications) {
                         Icon(
                             Icons.Outlined.Notifications,
-                            contentDescription =
-                                "Notifications",
-
-                            tint =
-                                Color(0xFF1E1B4B)
+                            contentDescription = "Notifications",
+                            tint = Color(0xFF1E1B4B)
                         )
                     }
-
                     Box(
                         modifier = Modifier
                             .size(8.dp)
                             .clip(CircleShape)
-                            .background(
-                                Color(0xFFEF4444)
-                            )
+                            .background(Color(0xFFEF4444))
                             .align(Alignment.TopEnd)
-                            .offset(
-                                x = (-6).dp,
-                                y = 6.dp
-                            )
+                            .offset(x = (-6).dp, y = 6.dp)
                     )
                 }
             }
         }
 
-
-        // ------------------------------------------------------
-        // SEARCH
-        // ------------------------------------------------------
-
+        // SEARCH (Clicking navigates to Offline Library)
         item {
-
             Surface(
-                shape =
-                    RoundedCornerShape(16.dp),
-
+                shape = RoundedCornerShape(16.dp),
                 color = Color.White,
-
                 shadowElevation = 2.dp,
-
-                modifier =
-                    Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onSearchClicked)
             ) {
-
                 Row(
                     modifier = Modifier.padding(
                         horizontal = 16.dp,
                         vertical = 12.dp
                     ),
-
-                    verticalAlignment =
-                        Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-
                     Icon(
                         Icons.Default.Search,
                         contentDescription = null,
-                        tint = Color(0xFF9CA3AF)
+                        tint = Color(0xFF7C3AED)
                     )
-
-                    Spacer(
-                        modifier = Modifier.width(10.dp)
-                    )
-
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        "Search lessons...",
+                        "Search lessons in library...",
                         fontSize = 14.sp,
-                        color = Color(0xFF9CA3AF)
+                        color = Color(0xFF6B7280)
                     )
                 }
             }
         }
 
-
-        // ------------------------------------------------------
         // HERO
-        // ------------------------------------------------------
-
         item {
             HomeHeroBanner()
         }
 
-
-        // ------------------------------------------------------
         // ACTION GRID
-        // ------------------------------------------------------
-
         item {
-
-            Column(
-                verticalArrangement =
-                    Arrangement.spacedBy(14.dp)
-            ) {
-
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(
-                    modifier =
-                        Modifier.fillMaxWidth(),
-
-                    horizontalArrangement =
-                        Arrangement.spacedBy(14.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-
                     HomeGridTile(
-                        modifier =
-                            Modifier.weight(1f),
-
+                        modifier = Modifier.weight(1f),
                         title = "New Lesson",
-
-                        onClick =
-                            onNewLesson
+                        onClick = onNewLesson
                     ) {
-
                         Surface(
                             shape = CircleShape,
-
-                            color =
-                                Color(0xFF7C3AED),
-
-                            modifier =
-                                Modifier.size(54.dp)
+                            color = Color(0xFF7C3AED),
+                            modifier = Modifier.size(54.dp)
                         ) {
-
-                            Box(
-                                contentAlignment =
-                                    Alignment.Center
-                            ) {
-
+                            Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     Icons.Default.Add,
-                                    contentDescription =
-                                        "New Lesson",
-
+                                    contentDescription = "New Lesson",
                                     tint = Color.White,
-
-                                    modifier =
-                                        Modifier.size(32.dp)
+                                    modifier = Modifier.size(32.dp)
                                 )
                             }
                         }
                     }
 
-
                     HomeGridTile(
-                        modifier =
-                            Modifier.weight(1f),
-
+                        modifier = Modifier.weight(1f),
                         title = "Offline Library",
-
-                        onClick =
-                            onViewSaved
+                        onClick = onViewSaved
                     ) {
-
                         Icon(
                             Icons.AutoMirrored.Filled.MenuBook,
-
-                            contentDescription =
-                                "Offline Library",
-
-                            tint =
-                                Color(0xFF7C3AED),
-
-                            modifier =
-                                Modifier.size(42.dp)
+                            contentDescription = "Offline Library",
+                            tint = Color(0xFF7C3AED),
+                            modifier = Modifier.size(42.dp)
                         )
                     }
                 }
 
-
                 Row(
-                    modifier =
-                        Modifier.fillMaxWidth(),
-
-                    horizontalArrangement =
-                        Arrangement.spacedBy(14.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-
-                    // ------------------------------------------
                     // RECENT LESSON
-                    // ------------------------------------------
-
                     Surface(
-                        shape =
-                            RoundedCornerShape(20.dp),
-
-                        color =
-                            Color(0xFF4C1D95),
-
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFF4C1D95),
                         shadowElevation = 4.dp,
-
                         modifier = Modifier
                             .weight(1f)
                             .height(140.dp)
-                            .clickable(
-                                onClick =
-                                    onPlayRecent
-                            )
+                            .clickable(onClick = onPlayRecent)
                     ) {
-
                         Column(
-                            modifier =
-                                Modifier
-                                    .padding(16.dp)
-                                    .fillMaxSize(),
-
-                            verticalArrangement =
-                                Arrangement.SpaceBetween
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxSize(),
+                            verticalArrangement = Arrangement.SpaceBetween
                         ) {
-
                             Text(
-                                "Recent:\nMath (G3)",
-
+                                "Recent Audio:\nFLN Practice",
                                 fontSize = 13.sp,
-
-                                fontWeight =
-                                    FontWeight.Bold,
-
+                                fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
 
-
-                            Row(
-                                horizontalArrangement =
-                                    Arrangement.spacedBy(3.dp)
-                            ) {
-
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                                 repeat(12) { index ->
-
                                     Box(
-                                        modifier =
-                                            Modifier
-                                                .width(3.dp)
-                                                .height(
-                                                    listOf(
-                                                        10, 20, 14,
-                                                        28, 16, 22,
-                                                        12, 26, 18,
-                                                        10, 22, 14
-                                                    )[index].dp
-                                                )
-                                                .clip(
-                                                    CircleShape
-                                                )
-                                                .background(
-                                                    Color(0xFFC4B5FD)
-                                                )
+                                        modifier = Modifier
+                                            .width(3.dp)
+                                            .height(
+                                                listOf(10, 20, 14, 28, 16, 22, 12, 26, 18, 10, 22, 14)[index].dp
+                                            )
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFC4B5FD))
                                     )
                                 }
                             }
 
-
                             Surface(
-                                shape =
-                                    RoundedCornerShape(12.dp),
-
-                                color =
-                                    Color.White,
-
-                                modifier =
-                                    Modifier.fillMaxWidth()
+                                shape = RoundedCornerShape(12.dp),
+                                color = Color.White,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-
                                 Box(
-                                    contentAlignment =
-                                        Alignment.Center,
-
-                                    modifier =
-                                        Modifier.padding(
-                                            vertical = 6.dp
-                                        )
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.padding(vertical = 6.dp)
                                 ) {
-
                                     Text(
-                                        "PLAY",
-
+                                        "PLAYER",
                                         fontSize = 12.sp,
-
-                                        fontWeight =
-                                            FontWeight.ExtraBold,
-
-                                        color =
-                                            Color(0xFF4C1D95)
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF4C1D95)
                                     )
                                 }
                             }
                         }
                     }
 
-
-                    // ------------------------------------------
-                    // REPLACEMENT FOR STUDENT PROGRESS
-                    // ------------------------------------------
-
+                    // SUPPORTED LANGUAGES (Now shows language info modal)
                     SupportedLanguagesTile(
-                        modifier =
-                            Modifier.weight(1f),
-
-                        onClick =
-                            onNewLesson
+                        modifier = Modifier.weight(1f),
+                        onClick = { showLanguageInfoDialog = true }
                     )
                 }
             }
@@ -1085,10 +981,7 @@ fun HomeScreen(
     }
 }
 
-
-// ============================================================
 // HERO BANNER
-// ============================================================
 
 @Composable
 fun HomeHeroBanner() {
@@ -1235,11 +1128,7 @@ fun HomeHeroBanner() {
     }
 }
 
-
-// ============================================================
 // SUPPORTED LANGUAGES TILE
-// ============================================================
-
 @Composable
 fun SupportedLanguagesTile(
     modifier: Modifier,
@@ -1306,7 +1195,6 @@ fun SupportedLanguagesTile(
     }
 }
 
-
 @Composable
 fun LanguageChip(
     name: String,
@@ -1361,10 +1249,7 @@ fun LanguageChip(
     }
 }
 
-
-// ============================================================
 // HOME GRID TILE
-// ============================================================
 
 @Composable
 fun HomeGridTile(
@@ -1423,11 +1308,7 @@ fun HomeGridTile(
     }
 }
 
-
-// ============================================================
 // 3. NEW LESSON SCREEN
-// ============================================================
-
 @Composable
 fun NewLessonScreen(
     grade: String,
@@ -1578,10 +1459,7 @@ fun NewLessonScreen(
                 Modifier.fillMaxWidth()
         ) {
 
-            // --------------------------------------------------
             // TOP BAR
-            // --------------------------------------------------
-
             Row(
                 modifier =
                     Modifier
@@ -1620,12 +1498,7 @@ fun NewLessonScreen(
                         Color(0xFF1E1B4B)
                 )
             }
-
-
-            // --------------------------------------------------
             // FILTERS
-            // --------------------------------------------------
-
             Row(
                 modifier =
                     Modifier.fillMaxWidth(),
@@ -1675,7 +1548,6 @@ fun NewLessonScreen(
                         }
                     }
                 }
-
 
                 Box(
                     modifier =
@@ -1760,16 +1632,11 @@ fun NewLessonScreen(
                 }
             }
 
-
             Spacer(
                 modifier =
                     Modifier.height(22.dp)
             )
-
-
-            // --------------------------------------------------
             // MICROPHONE
-            // --------------------------------------------------
 
             Box(
                 modifier =
@@ -1791,7 +1658,6 @@ fun NewLessonScreen(
                             )
                 )
 
-
                 Box(
                     modifier =
                         Modifier
@@ -1801,7 +1667,6 @@ fun NewLessonScreen(
                                 Color(0x3D7C3AED)
                             )
                 )
-
 
                 val micScale by
                 animateFloatAsState(
@@ -1921,11 +1786,7 @@ fun NewLessonScreen(
                     Modifier.height(18.dp)
             )
 
-
-            // --------------------------------------------------
             // TRANSCRIPTION
-            // --------------------------------------------------
-
             Surface(
                 shape =
                     RoundedCornerShape(16.dp),
@@ -2030,10 +1891,7 @@ fun NewLessonScreen(
             }
         }
 
-
-        // ------------------------------------------------------
         // GENERATE
-        // ------------------------------------------------------
 
         Button(
             onClick =
@@ -2080,11 +1938,7 @@ fun NewLessonScreen(
         }
     }
 }
-
-
-// ============================================================
 // FILTER CHIP
-// ============================================================
 
 @Composable
 fun FilterDropdownChip(
@@ -2139,138 +1993,116 @@ fun FilterDropdownChip(
     }
 }
 
-
-// ============================================================
 // 4. PROCESSING SCREEN
-// ============================================================
-
 @Composable
 fun ProcessingScreen(
     grade: String,
     area: String,
     lang: String,
     text: String,
-    onSuccess: (ProcessLessonResponse) -> Unit
+    onSuccess: (ProcessLessonResponse) -> Unit,
+    onBackToLibrary: () -> Unit = {},
+    onBackToInput: () -> Unit = {}
 ) {
-
     var currentStep by remember {
         mutableStateOf(1)
     }
-
+    var errorMessage by remember {
+        mutableStateOf<String?>(null)
+    }
 
     val infiniteTransition =
         rememberInfiniteTransition(
             label = "processing"
         )
-
+    val context = LocalContext.current
 
     val pulseScale by
     infiniteTransition.animateFloat(
         initialValue = 0.9f,
-
         targetValue = 1.1f,
-
         animationSpec =
             infiniteRepeatable(
-                animation =
-                    tween(1000),
-
-                repeatMode =
-                    RepeatMode.Reverse
+                animation = tween(1000),
+                repeatMode = RepeatMode.Reverse
             ),
-
         label = "pulse"
     )
 
-
     LaunchedEffect(Unit) {
-
         currentStep = 1
-
         delay(700)
-
         currentStep = 2
-
         delay(700)
-
         currentStep = 3
 
-
         try {
-
             val request =
                 ProcessLessonRequest(
-
-                    grade =
-                        grade
-                            .filter {
-                                it.isDigit()
-                            }
-                            .toIntOrNull()
-                            ?: 3,
-
-                    learning_area =
-                        area,
-
-                    target_language =
-                        lang,
-
-                    text =
-                        text
+                    grade = grade.filter { it.isDigit() }.toIntOrNull() ?: 3,
+                    learning_area = area,
+                    learning_objective = text.take(60),
+                    target_language = lang,
+                    text = text
                 )
-
+            val repository =
+                LessonRepository(context)
 
             val response =
-                RetrofitClient
-                    .apiService
-                    .processLesson(request)
-
+                repository.getLesson(
+                    request = request,
+                    subject = area
+                )
 
             currentStep = 4
-
             delay(300)
-
             onSuccess(response)
 
         } catch (e: Exception) {
-
-            // -----------------------------------------------
-            // OFFLINE FALLBACK
-            // -----------------------------------------------
-
-            val fallback =
-                RetrofitClient.generateLocalFallback(
-
-                    ProcessLessonRequest(
-
-                        grade =
-                            grade
-                                .filter {
-                                    it.isDigit()
-                                }
-                                .toIntOrNull()
-                                ?: 3,
-
-                        learning_area =
-                            area,
-
-                        target_language =
-                            lang,
-
-                        text =
-                            text
-                    )
-                )
-
-
-            currentStep = 4
-
-            delay(300)
-
-            onSuccess(fallback)
+            Log.e("LESSON_ERROR", "Lesson Processing Failed", e)
+            val msg = if (e is OfflineLessonUnavailableException) {
+                e.message ?: "This lesson is not available offline."
+            } else {
+                "Unable to connect to backend server. This sentence is not cached locally. Please connect to the network to translate new lessons, or choose an existing lesson from the Offline Library."
+            }
+            errorMessage = msg
         }
     }
 
+    if (errorMessage != null) {
+        AlertDialog(
+            onDismissRequest = { /* force user to select action */ },
+            title = {
+                Text(
+                    "Lesson Unavailable Offline",
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF1E1B4B)
+                )
+            },
+            text = {
+                Text(
+                    errorMessage ?: "This sentence is not cached locally. Connect to network to translate new content.",
+                    color = Color(0xFF4B5563),
+                    fontSize = 14.sp
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = onBackToLibrary,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED))
+                ) {
+                    Text("Go to Offline Library")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onBackToInput) {
+                    Text("Back to Input", color = Color(0xFF6B7280))
+                }
+            },
+            containerColor = Color.White,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
 
     Column(
         modifier =
@@ -2344,7 +2176,6 @@ fun ProcessingScreen(
             }
         }
 
-
         Spacer(
             modifier =
                 Modifier.height(28.dp)
@@ -2405,10 +2236,7 @@ fun ProcessingScreen(
     }
 }
 
-
-// ============================================================
 // PROCESS STEP
-// ============================================================
 
 @Composable
 fun ProcessStepRow(
@@ -2496,10 +2324,7 @@ fun ProcessStepRow(
     }
 }
 
-
-// ============================================================
 // 5. RESULT SCREEN
-// ============================================================
 @Composable
 fun ResultScreen(
     grade: String,
@@ -2524,18 +2349,12 @@ fun ResultScreen(
         mutableStateOf(false)
     }
 
-    // ------------------------------------------------------------
     // EXOPLAYER
-    // ------------------------------------------------------------
-
     val exoPlayer = remember {
         ExoPlayer.Builder(context)
             .build()
     }
-
-    // ------------------------------------------------------------
     // EXOPLAYER LISTENER
-    // ------------------------------------------------------------
 
     DisposableEffect(exoPlayer) {
 
@@ -2549,7 +2368,6 @@ fun ResultScreen(
                     "ExoPlayer isPlaying = $playing"
                 )
             }
-
             override fun onPlaybackStateChanged(state: Int) {
 
                 when (state) {
@@ -2612,10 +2430,7 @@ fun ResultScreen(
         }
     }
 
-
-    // ============================================================
     // UI
-    // ============================================================
 
     LazyColumn(
         modifier = Modifier
@@ -2631,9 +2446,7 @@ fun ResultScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
 
-        // ========================================================
         // HEADER
-        // ========================================================
 
         item {
 
@@ -2685,10 +2498,7 @@ fun ResultScreen(
             }
         }
 
-
-        // ========================================================
         // HINDI SOURCE TEXT
-        // ========================================================
 
         item {
 
@@ -2716,10 +2526,7 @@ fun ResultScreen(
             )
         }
 
-
-        // ========================================================
         // TRANSLATED LESSON
-        // ========================================================
 
         item {
 
@@ -2776,10 +2583,7 @@ fun ResultScreen(
             }
         }
 
-// ========================================================
 // AUDIO PLAYER
-// ========================================================
-
         item {
 
             Surface(
@@ -2794,9 +2598,7 @@ fun ResultScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
 
-                    // ------------------------------------------------
                     // AUDIO HEADER
-                    // ------------------------------------------------
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -2831,25 +2633,15 @@ fun ResultScreen(
                         )
                     }
 
-
                     Spacer(modifier = Modifier.height(18.dp))
 
-
-                    // ------------------------------------------------
                     // WAVEFORM
-                    // ------------------------------------------------
-
                     AudioWaveformVisualizer(
                         isPlaying = isPlaying
                     )
 
-
                     Spacer(modifier = Modifier.height(18.dp))
-
-
-                    // ------------------------------------------------
                     // CONTROLS
-                    // ------------------------------------------------
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -2857,10 +2649,7 @@ fun ResultScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
 
-                        // ============================================
                         // SPEED
-                        // ============================================
-
                         IconButton(
                             onClick = {
                                 playbackSpeed = when (playbackSpeed) {
@@ -2880,11 +2669,7 @@ fun ResultScreen(
                             )
                         }
 
-
-                        // ============================================
                         // PLAY / PAUSE
-                        // ============================================
-
                         Surface(
                             shape = CircleShape,
                             color = Color(0xFF7C3AED),
@@ -3021,11 +2806,7 @@ fun ResultScreen(
                             }
                         }
 
-
-                        // ============================================
                         // SHARE
-                        // ============================================
-
                         IconButton(
                             onClick = {
                                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -3054,14 +2835,9 @@ fun ResultScreen(
                         }
                     }
 
-
                     Spacer(modifier = Modifier.height(10.dp))
 
-
-                    // ------------------------------------------------
                     // AUDIO STATUS
-                    // ------------------------------------------------
-
                     Text(
                         text = when {
                             isPlaying -> "Playing Santali audio"
@@ -3094,9 +2870,7 @@ fun ResultScreen(
                 }
             }
         }
-        // ========================================================
         // SAVE / NEW LESSON
-        // ========================================================
 
         item {
 
@@ -3108,10 +2882,7 @@ fun ResultScreen(
                     Arrangement.spacedBy(12.dp)
             ) {
 
-                // ------------------------------------------------
                 // SAVE OFFLINE
-                // ------------------------------------------------
-
                 Button(
                     onClick = {
 
@@ -3145,53 +2916,31 @@ fun ResultScreen(
                                 }
 
                             val localAudioPath =
-                                savedAudioUrl?.let { audioUrl ->
-                                    AudioCacheManager.downloadAudio(
-                                        context = context,
-                                        audioUrl = audioUrl
-                                    )
+                                if (!response?.localAudioPath.isNullOrBlank() && AudioCacheManager.isAvailable(response.localAudioPath)) {
+                                    response.localAudioPath
+                                } else {
+                                    savedAudioUrl?.let { audioUrl ->
+                                        AudioCacheManager.downloadAudio(
+                                            context = context,
+                                            audioUrl = audioUrl
+                                        )
+                                    }
                                 }
-
 
                             db.lessonDao()
                                 .insertLesson(
-
-                                    SavedLesson(
-
-                                        title =
-                                            response
-                                                ?.source_text
-                                                ?.take(30)
-                                                ?: "Santali Lesson",
-
-                                        grade =
-                                            grade,
-
-                                        subject =
-                                            "General",
-
-                                        targetLanguage =
-                                            response
-                                                ?.target_language
-                                                ?: "Santali",
-
-                                        hindiText =
-                                            response
-                                                ?.source_text
-                                                ?: "",
-
-                                        translatedText =
-                                            response
-                                                ?.translated_text
-                                                ?: "",
-                                        localAudioPath =
-                                            localAudioPath,
-
-                                        remoteAudioUrl =
-                                            savedAudioUrl
+                                    LessonEntity(
+                                        title = response?.source_text?.take(30) ?: "Santali Lesson",
+                                        grade = grade,
+                                        subject = subject,
+                                        targetLanguage = response?.target_language ?: "Santali",
+                                        hindiText = response?.source_text ?: "",
+                                        translatedText = response?.translated_text ?: "",
+                                        localAudioPath = localAudioPath,
+                                        remoteAudioUrl = savedAudioUrl,
+                                        verificationStatus = "development"
                                     )
                                 )
-
 
                             isSaved = true
 
@@ -3251,12 +3000,7 @@ fun ResultScreen(
                             FontWeight.Bold
                     )
                 }
-
-
-                // ------------------------------------------------
                 // NEW LESSON
-                // ------------------------------------------------
-
                 OutlinedButton(
                     onClick =
                         onHome,
@@ -3285,9 +3029,7 @@ fun ResultScreen(
     }
 }
 
-// ============================================================
 // LESSON TEXT CARD
-// ============================================================
 
 @Composable
 fun LessonTextCard(
@@ -3333,7 +3075,6 @@ fun LessonTextCard(
                         Color(0xFF6B7280)
                 )
 
-
                 IconButton(
                     onClick = onCopy
                 ) {
@@ -3353,7 +3094,6 @@ fun LessonTextCard(
                 }
             }
 
-
             Text(
                 text,
 
@@ -3369,10 +3109,7 @@ fun LessonTextCard(
     }
 }
 
-
-// ============================================================
 // AUDIO WAVEFORM
-// ============================================================
 
 @Composable
 fun AudioWaveformVisualizer(
@@ -3383,7 +3120,6 @@ fun AudioWaveformVisualizer(
         rememberInfiniteTransition(
             label = "waveform"
         )
-
 
     Row(
         modifier =
@@ -3443,15 +3179,12 @@ fun AudioWaveformVisualizer(
         }
     }
 }
-
-
-// ============================================================
 // 6. OFFLINE LIBRARY
-// ============================================================
 
 @Composable
 fun SavedLessonsScreen(
-    onBackHome: () -> Unit
+    onBackHome: () -> Unit,
+    onReadFullLesson: (LessonEntity) -> Unit = {}
 ) {
 
     val context =
@@ -3461,7 +3194,7 @@ fun SavedLessonsScreen(
         rememberCoroutineScope()
 
     var savedList by remember {
-        mutableStateOf<List<SavedLesson>>(
+        mutableStateOf<List<LessonEntity>>(
             emptyList()
         )
     }
@@ -3469,7 +3202,6 @@ fun SavedLessonsScreen(
     var searchQuery by remember {
         mutableStateOf("")
     }
-
 
     fun refreshList() {
 
@@ -3479,7 +3211,6 @@ fun SavedLessonsScreen(
                 AppDatabase.getDatabase(
                     context
                 )
-
 
             savedList =
                 if (searchQuery.isBlank()) {
@@ -3497,12 +3228,10 @@ fun SavedLessonsScreen(
         }
     }
 
-
     LaunchedEffect(searchQuery) {
 
         refreshList()
     }
-
 
     Column(
         modifier =
@@ -3520,7 +3249,6 @@ fun SavedLessonsScreen(
             modifier =
                 Modifier.height(16.dp)
         )
-
 
         Row(
             modifier =
@@ -3557,7 +3285,6 @@ fun SavedLessonsScreen(
                 )
             }
 
-
             IconButton(
                 onClick =
                     onBackHome
@@ -3578,10 +3305,7 @@ fun SavedLessonsScreen(
                 Modifier.height(16.dp)
         )
 
-
-        // ------------------------------------------------------
         // SEARCH
-        // ------------------------------------------------------
 
         OutlinedTextField(
 
@@ -3640,12 +3364,10 @@ fun SavedLessonsScreen(
                 RoundedCornerShape(16.dp)
         )
 
-
         Spacer(
             modifier =
                 Modifier.height(16.dp)
         )
-
 
         if (savedList.isEmpty()) {
 
@@ -3677,12 +3399,10 @@ fun SavedLessonsScreen(
                             Color(0xFFC4B5FD)
                     )
 
-
                     Spacer(
                         modifier =
                             Modifier.height(12.dp)
                     )
-
 
                     Text(
                         "No saved lessons found.",
@@ -3695,7 +3415,6 @@ fun SavedLessonsScreen(
                         color =
                             Color(0xFF6B7280)
                     )
-
 
                     Text(
                         "Create a lesson and tap Save Offline.",
@@ -3756,23 +3475,21 @@ fun SavedLessonsScreen(
                                     Toast.LENGTH_SHORT
                                 ).show()
                             }
-                        }
+                        },
+                        onReadFullLesson = onReadFullLesson
                     )
                 }
             }
         }
     }
 }
-
-
-// ============================================================
 // SAVED LESSON CARD
-// ============================================================
 
 @Composable
 fun SavedLessonCard(
-    lesson: SavedLesson,
-    onDelete: () -> Unit
+    lesson: LessonEntity,
+    onDelete: () -> Unit,
+    onReadFullLesson: (LessonEntity) -> Unit = {}
 ) {
 
     val context =
@@ -3794,7 +3511,6 @@ fun SavedLessonCard(
             ).build()
         }
 
-
     DisposableEffect(Unit) {
 
         onDispose {
@@ -3802,7 +3518,6 @@ fun SavedLessonCard(
             player.release()
         }
     }
-
 
     Surface(
         shape =
@@ -3823,9 +3538,7 @@ fun SavedLessonCard(
                 Modifier.padding(16.dp)
         ) {
 
-            // --------------------------------------------------
             // HEADER
-            // --------------------------------------------------
 
             Row(
                 modifier =
@@ -3993,12 +3706,11 @@ fun SavedLessonCard(
                     Modifier.height(12.dp)
             )
 
-
-            // --------------------------------------------------
             // AUDIO
-            // --------------------------------------------------
-
             if (
+                AudioCacheManager.isAvailable(
+                    lesson.localAudioPath
+                ) ||
                 !lesson.remoteAudioUrl.isNullOrBlank()
             ) {
 
@@ -4062,163 +3774,122 @@ fun SavedLessonCard(
                                 )
 
                                 Text(
-                                    "Santali pronunciation",
-
+                                    if (
+                                        AudioCacheManager.isAvailable(
+                                            lesson.localAudioPath
+                                        )
+                                    ) {
+                                        "Available offline"
+                                    } else {
+                                        "Santali pronunciation"
+                                    },
                                     fontSize = 10.sp,
-
-                                    color =
-                                        Color(0xFF6B7280)
+                                    color = Color(0xFF6B7280)
                                 )
                             }
                         }
 
-
                         IconButton(
-
                             onClick = {
+                                if (isPlaying) {
+                                    player.pause()
+                                    isPlaying = false
+                                    return@IconButton
+                                }
+
                                 val localPath = lesson.localAudioPath
                                 val remoteUrl = lesson.remoteAudioUrl
-
-                                val audioUrl = when {
+                                val mediaUri = when {
                                     AudioCacheManager.isAvailable(localPath) -> {
-                                        android.net.Uri.fromFile(
-                                            java.io.File(localPath!!)
-                                        )
+                                        Log.d("AUDIO_DEBUG", "Using LOCAL audio: $localPath")
+                                        Uri.fromFile(File(localPath!!))
                                     }
                                     !remoteUrl.isNullOrBlank() -> {
-                                        android.net.Uri.parse(remoteUrl)
+                                        Log.d("AUDIO_DEBUG", "Using REMOTE audio: $remoteUrl")
+                                        Uri.parse(remoteUrl)
                                     }
                                     else -> null
                                 }
 
-                                if(audioUrl == null) {
-                                    Toast.makeText(
-                                        context,
-                                        "Audio Unavailable",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-
+                                if (mediaUri == null) {
+                                    Toast.makeText(context, "Audio unavailable", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
 
-
-                                if (isPlaying) {
-
-                                    player.pause()
-
-                                    isPlaying =
-                                        false
-
-                                } else {
-
-                                    player.setMediaItem(
-                                        MediaItem.fromUri(
-                                            audioUrl
-                                        )
-                                    )
-
+                                try {
+                                    player.stop()
+                                    player.clearMediaItems()
+                                    player.setMediaItem(MediaItem.fromUri(mediaUri))
                                     player.prepare()
-
                                     player.play()
-
-                                    isPlaying =
-                                        true
+                                    isPlaying = true
+                                } catch (e: Exception) {
+                                    Log.e("AUDIO_ERROR", "Failed to play audio", e)
+                                    isPlaying = false
+                                    Toast.makeText(context, "Audio playback failed", Toast.LENGTH_SHORT).show()
                                 }
                             }
                         ) {
-
                             Surface(
-                                shape =
-                                    CircleShape,
-
-                                color =
-                                    Color(0xFF7C3AED),
-
-                                modifier =
-                                    Modifier.size(42.dp)
+                                shape = CircleShape,
+                                color = Color(0xFF7C3AED),
+                                modifier = Modifier.size(42.dp)
                             ) {
-
-                                Box(
-                                    contentAlignment =
-                                        Alignment.Center
-                                ) {
-
+                                Box(contentAlignment = Alignment.Center) {
                                     Icon(
-                                        if (isPlaying)
-                                            Icons.Default.Pause
-                                        else
-                                            Icons.Default.PlayArrow,
-
-                                        contentDescription =
-                                            if (isPlaying)
-                                                "Pause Audio"
-                                            else
-                                                "Play Audio",
-
-                                        tint =
-                                            Color.White
+                                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                        contentDescription = if (isPlaying) "Pause Audio" else "Play Audio",
+                                        tint = Color.White
                                     )
                                 }
                             }
                         }
                     }
                 }
-
             } else {
-
                 Text(
                     "Audio not available for this lesson",
-
                     fontSize = 11.sp,
-
-                    color =
-                        Color(0xFFEF4444)
+                    color = Color(0xFFEF4444)
                 )
             }
 
-
-            // --------------------------------------------------
-            // EXPAND
-            // --------------------------------------------------
-
             Row(
-                modifier =
-                    Modifier.fillMaxWidth(),
-
-                horizontalArrangement =
-                    Arrangement.End
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-
                 TextButton(
                     onClick = {
                         expanded = !expanded
                     }
                 ) {
-
                     Text(
-                        if (expanded)
-                            "Show Less"
-                        else
-                            "Read Full Lesson",
-
+                        if (expanded) "Show Less" else "Expand Summary",
                         fontSize = 12.sp,
+                        color = Color(0xFF6B7280)
+                    )
+                }
 
-                        color =
-                            Color(0xFF7C3AED),
-
-                        fontWeight =
-                            FontWeight.Bold
+                Button(
+                    onClick = {
+                        onReadFullLesson(lesson)
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED)),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        "Read Full Lesson",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
             }
         }
     }
 }
-
-
-// ============================================================
-// 7. NOTIFICATIONS
-// ============================================================
 
 data class NotificationItem(
     val id: String,
@@ -4229,290 +3900,151 @@ data class NotificationItem(
     val isNewLesson: Boolean = false
 )
 
-
 @Composable
 fun NotificationsScreen(
     onBack: () -> Unit,
     onLearnNewLesson: () -> Unit
 ) {
-
-    val notifications =
-        remember {
-
-            listOf(
-
-                NotificationItem(
-                    id = "1",
-
-                    title =
-                        "New Lesson Added",
-
-                    message =
-                        "Math Grade 3 is ready with Santali translation and audio.",
-
-                    badge =
-                        "NEW LESSON",
-
-                    time =
-                        "Recently",
-
-                    isNewLesson =
-                        true
-                ),
-
-                NotificationItem(
-                    id = "2",
-
-                    title =
-                        "Offline Library",
-
-                    message =
-                        "Your saved lessons are available from the Offline Library.",
-
-                    badge =
-                        "OFFLINE",
-
-                    time =
-                        "Today"
-                ),
-
-                NotificationItem(
-                    id = "3",
-
-                    title =
-                        "Audio Ready",
-
-                    message =
-                        "Generated Santali pronunciation is ready for playback.",
-
-                    badge =
-                        "AUDIO",
-
-                    time =
-                        "Today"
-                )
+    val notifications = remember {
+        listOf(
+            NotificationItem(
+                id = "1",
+                title = "New Lesson Added",
+                message = "Math Grade 3 is ready with Santali translation and audio.",
+                badge = "NEW LESSON",
+                time = "Recently",
+                isNewLesson = true
+            ),
+            NotificationItem(
+                id = "2",
+                title = "Offline Library",
+                message = "Your saved lessons are available from the Offline Library.",
+                badge = "OFFLINE",
+                time = "Today"
+            ),
+            NotificationItem(
+                id = "3",
+                title = "Audio Ready",
+                message = "Generated Santali pronunciation is ready for playback.",
+                badge = "AUDIO",
+                time = "Today"
             )
-        }
-
+        )
+    }
 
     LazyColumn(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp),
-
-        contentPadding =
-            PaddingValues(
-                top = 16.dp,
-                bottom = 24.dp
-            ),
-
-        verticalArrangement =
-            Arrangement.spacedBy(14.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(
+            top = 16.dp,
+            bottom = 24.dp
+        ),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-
         item {
-
             Row(
-                modifier =
-                    Modifier.fillMaxWidth(),
-
-                verticalAlignment =
-                    Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-
-                IconButton(
-                    onClick = onBack
-                ) {
-
+                IconButton(onClick = onBack) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
-
-                        contentDescription =
-                            "Back"
+                        contentDescription = "Back"
                     )
                 }
 
-
                 Column {
-
                     Text(
                         "Notifications",
-
                         fontSize = 20.sp,
-
-                        fontWeight =
-                            FontWeight.Bold,
-
-                        color =
-                            Color(0xFF1E1B4B)
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E1B4B)
                     )
 
                     Text(
                         "Lessons & classroom updates",
-
                         fontSize = 12.sp,
-
-                        color =
-                            Color(0xFF6B7280)
+                        color = Color(0xFF6B7280)
                     )
                 }
             }
         }
 
-
-        items(
-            notifications
-        ) { item ->
-
+        items(notifications) { item ->
             Surface(
-                shape =
-                    RoundedCornerShape(20.dp),
-
-                color =
-                    Color.White,
-
-                shadowElevation =
-                    3.dp,
-
-                modifier =
-                    Modifier.fillMaxWidth()
+                shape = RoundedCornerShape(20.dp),
+                color = Color.White,
+                shadowElevation = 3.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-
-                Column(
-                    modifier =
-                        Modifier.padding(16.dp)
-                ) {
-
+                Column(modifier = Modifier.padding(16.dp)) {
                     Row(
-                        modifier =
-                            Modifier.fillMaxWidth(),
-
-                        horizontalArrangement =
-                            Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-
                         Surface(
-                            shape =
-                                RoundedCornerShape(10.dp),
-
-                            color =
-                                Color(0xFFF3E8FF)
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFF3E8FF)
                         ) {
-
                             Text(
                                 item.badge,
-
                                 fontSize = 10.sp,
-
-                                fontWeight =
-                                    FontWeight.Bold,
-
-                                color =
-                                    Color(0xFF7C3AED),
-
-                                modifier =
-                                    Modifier.padding(
-                                        horizontal = 8.dp,
-                                        vertical = 4.dp
-                                    )
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF7C3AED),
+                                modifier = Modifier.padding(
+                                    horizontal = 8.dp,
+                                    vertical = 4.dp
+                                )
                             )
                         }
 
-
                         Text(
                             item.time,
-
                             fontSize = 11.sp,
-
-                            color =
-                                Color(0xFF9CA3AF)
+                            color = Color(0xFF9CA3AF)
                         )
                     }
 
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(10.dp)
-                    )
-
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     Text(
                         item.title,
-
                         fontSize = 15.sp,
-
-                        fontWeight =
-                            FontWeight.Bold,
-
-                        color =
-                            Color(0xFF1E1B4B)
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E1B4B)
                     )
 
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(4.dp)
-                    )
-
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
                         item.message,
-
                         fontSize = 13.sp,
-
-                        color =
-                            Color(0xFF4B5563),
-
-                        lineHeight =
-                            18.sp
+                        color = Color(0xFF4B5563),
+                        lineHeight = 18.sp
                     )
 
-
-                    if (
-                        item.isNewLesson
-                    ) {
-
-                        Spacer(
-                            modifier =
-                                Modifier.height(12.dp)
-                        )
-
+                    if (item.isNewLesson) {
+                        Spacer(modifier = Modifier.height(12.dp))
 
                         Button(
-                            onClick =
-                                onLearnNewLesson,
-
-                            modifier =
-                                Modifier.fillMaxWidth(),
-
-                            shape =
-                                RoundedCornerShape(12.dp),
-
-                            colors =
-                                ButtonDefaults.buttonColors(
-                                    containerColor =
-                                        Color(0xFF7C3AED)
-                                )
+                            onClick = onLearnNewLesson,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF7C3AED)
+                            )
                         ) {
-
                             Icon(
                                 Icons.Default.PlayArrow,
-
-                                contentDescription =
-                                    null
+                                contentDescription = null
                             )
 
-                            Spacer(
-                                modifier =
-                                    Modifier.width(6.dp)
-                            )
+                            Spacer(modifier = Modifier.width(6.dp))
 
                             Text(
                                 "Create New Lesson",
-
-                                fontWeight =
-                                    FontWeight.Bold
+                                fontWeight = FontWeight.Bold
                             )
                         }
                     }

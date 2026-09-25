@@ -9,7 +9,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.lifecycleScope
+import com.vistaarsetu.app.data.LessonSeeder
 import com.vistaarsetu.app.ui.MainAppNavigation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 private val VistaarLightColorScheme = lightColorScheme(
     primary = Color(0xFF7C3AED),             // Vivid Purple Accent
@@ -33,6 +37,12 @@ private val VistaarLightColorScheme = lightColorScheme(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Seed initial development lessons for offline FLN availability
+        lifecycleScope.launch(Dispatchers.IO) {
+            LessonSeeder.seedInitialDataIfNeeded(applicationContext)
+        }
+
         setContent {
             MaterialTheme(colorScheme = VistaarLightColorScheme) {
                 Surface(
@@ -40,7 +50,6 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                    MainAppNavigation()
-
                 }
             }
         }

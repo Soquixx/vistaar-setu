@@ -6,12 +6,15 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+
 object AudioCacheManager {
     suspend fun downloadAudio(
         context: Context,
         audioUrl: String
-    ): String? {
-        return try {
+    ): String? = withContext(Dispatchers.IO) {
+        try {
             val fileName = "audio_${System.currentTimeMillis()}.wav"
             val audioDir = File(context.filesDir, "audio")
 
@@ -36,7 +39,7 @@ object AudioCacheManager {
 
             if (connection.responseCode != HttpURLConnection.HTTP_OK) {
                 connection.disconnect()
-                return null
+                return@withContext null
             }
 
             connection.inputStream.use { input ->
@@ -56,10 +59,11 @@ object AudioCacheManager {
     }
 
     /**
-     * Checks whether a previously downloaded audio file still exists.
+     * Checks whether a previously downloaded audio file still exists and has valid audio data.
      */
     fun isAvailable(localPath: String?): Boolean {
         if (localPath.isNullOrBlank()) return false
-        return File(localPath).exists()
+        val file = File(localPath)
+        return file.exists() && file.length() > 0
     }
 }
