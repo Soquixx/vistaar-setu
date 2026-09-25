@@ -6,4 +6,8 @@ transformers
 sentencepiece
 sacremoses
 indic-nlp-library
+IndicTransToolkit
 regex
+
+parler-tts
+soundfile
