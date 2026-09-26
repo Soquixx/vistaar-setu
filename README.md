@@ -1,86 +1,112 @@
-```markdown
-# Vistaar Setu (विस्तार सेतु)
+# Vistaar Setu - AI Voice Bridge for Mother-Tongue Foundational Literacy in Low-Connectivity Schools.
 
-**Vistaar Setu** is an AI-powered offline-first educational bridge designed to break language barriers in single-teacher, multi-grade tribal classrooms. It enables educators to convert Hindi lessons into local mother-tongue audio explanations (Santali / Ol Chiki), bilingual flashcards, and automated classroom practice worksheets using a single Android device.
+**An offline-first AI translation and lesson-delivery tool that lets Hindi-medium teachers deliver mother-tongue foundational literacy instruction in Santali - no prior language training required.**
+
+Built for Smart India Hackathon 2026 by **Team Messi Verse**.
 
 ---
 
-## 📁 Repository Structure
+## The Problem
 
-```text
-vistaar_setu/
-├── backend/                  # FastAPI AI Translation & Audio Processing Server
-│   ├── api/                  # API Endpoint definitions (routes.py)
-│   ├── app/                  # Application core entry points (main.py)
-│   ├── schemas/              # Pydantic data schemas (lesson.py)
-│   └── services/             # Translation & TTS processing services
-├── android_ui/               # Android Native Mobile Application
-│   └── android/              # Jetpack Compose UI, ViewModel & Retrofit setup
-├── data/                     # Offline local resources & curricula
-│   ├── glossary/             # Key educational vocabulary mappings
-│   └── sample_curriculum/    # Standard subject-wise lesson plans
-├── test_indictrans.py        # Standalone script for translation pipeline testing
-├── test_santali_tts.py       # Standalone script for text-to-speech audio synthesis
-├── requirements.txt          # Python dependencies for the backend
-└── vistaar-setu-app.apk      # Compiled Android application package
+Thousands of tribal-area primary schools run Mother Tongue-Based Multilingual Education (MTB-MLE) programmes, but most assigned teachers are Hindi-medium trained and don't speak the children's home language. Existing digital tools are either general-purpose translators with no curriculum awareness, or require reliable internet that most target schools don't have.
+
+## What Vistaar Setu Does
+
+- Translates Hindi Foundational Literacy and Numeracy (FLN) content into **Santali (Ol Chiki script)**, as text and synthesized audio.
+- Runs **fully offline in the classroom** after a one-time sync — no live model inference happens on the tablet.
+- Generates **bilingual worksheets and flashcards** deterministically from verified lesson content, with zero additional translation-model risk.
+- Lets teachers save, replay, and build an offline lesson library over repeated use.
+
+### Honest scope
+
+We support **Santali only** at this stage, and say so deliberately rather than claiming Ho and Mundari support we can't back up. IndicTrans2 - the strongest open MT model for this language family - covers Santali as one of the 22 scheduled Indian languages; Ho and Mundari are not currently covered by any comparable open model. Extending to those languages is a real, distinct effort, not a checkbox.
+
+---
+
+## Architecture
 
 ```
+Teacher speaks Hindi (on-device speech recognition)
+        │
+        ▼
+  Local Room DB cache check
+        │
+   ┌────┴────┐
+  HIT       MISS
+   │           │
+   ▼           ▼
+Instant     FastAPI backend
+offline     (IndicTrans2 + Indic Parler-TTS)
+playback        │
+   │             ▼
+   │        Save to Room cache
+   │        (text + downloaded audio)
+   └─────┬───────┘
+         ▼
+  Offline Classroom Mode
+  Santali text · audio (ExoPlayer) · flashcards · worksheets
+```
+
+**Why this design:** IndicTrans2 and Indic Parler-TTS cannot run inference on a 2GB RAM Android tablet — that's a hardware ceiling, not a limitation specific to our implementation. So the tablet never runs a model. It stores and replays **pre-generated, human-verified lesson content**, and only reaches out to a live backend for genuinely new/uncached sentences. This is a sync-once, serve-forever pattern, not a "we tried to go offline and mostly succeeded" compromise.
 
 ---
 
-## 🛠️ Tech Stack & Architecture
+## Tech Stack
 
-* **Frontend:** Android (Kotlin, Jetpack Compose, Retrofit, Room Database)
-* **Backend Framework:** FastAPI (Python)
-* **AI Pipelines:** IndicTrans2 (Translation), Speech Synthesis / TTS (Santali Audio Output)
-* **Storage & Caching:** Local SQLite / Room DB (Offline playback and local worksheet rendering)
+**Android**
+- Kotlin + Jetpack Compose
+- Room (offline lesson/session storage)
+- Retrofit + OkHttp (backend networking)
+- Media3 / ExoPlayer (offline audio playback)
+- Android's on-device `RecognizerIntent` for Hindi speech-to-text (no bundled ASR model)
+
+**Backend**
+- Python, FastAPI, Uvicorn
+- [IndicTrans2](https://github.com/AI4Bharat/IndicTrans2) (AI4Bharat) — Hindi → Santali translation, distilled 320M variant
+- [Indic Parler-TTS](https://huggingface.co/ai4bharat/indic-parler-tts) (AI4Bharat) — Santali speech synthesis
 
 ---
 
-## ⚡ Quick Start Guide
+## Data & Verification
 
-### 1. Backend Setup
+- Curriculum content sourced and written against NIPUN Bharat / FLN learning outcomes (Grades 1–3, Mathematics, EVS, Literacy).
+- Draft translations generated via IndicTrans2, then **reviewed by a native Santali speaker** before being included in the shipped offline lesson bank.
+- We're transparent that not every seeded sentence has completed native-speaker review yet — each lesson carries a `verificationStatus` field (`development` / `verified`) rather than presenting unreviewed output as confirmed-accurate.
+- Worksheets and flashcards are built with **deterministic templating** from verified lesson pairs (distractor options pulled from other real, verified sentences) — not generated by a model — specifically to avoid introducing new hallucination risk into content shown to children.
 
+---
+
+## Setup
+
+### Backend
 ```bash
-# Clone the repository
-git clone [https://github.com/your-username/vistaar_setu.git](https://github.com/your-username/vistaar_setu.git)
-cd vistaar_setu
-
-# Create and activate a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install required packages
-pip install -r requirements.txt
-
-# Start the FastAPI server
-uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
-
+cd backend
+pip install -r requirements.txt --break-system-packages
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### 2. Expose Local Server via ngrok (For Android Testing)
-
-```bash
-ngrok http 8000
-
-```
-
-Copy the generated `https://xxxx.ngrok-free.app` URL and update the `BASE_URL` in your Android project's network configuration layer.
-
-### 3. Android Application Setup
-
-1. Open the `android_ui/android` folder in **Android Studio**.
-2. Sync the project with Gradle files (`build.gradle.kts`).
-3. Update `BASE_URL` in `RetrofitClient.kt` with your active backend endpoint.
-4. Run the app on an emulator or connect a physical Android device.
+### Android
+1. Open `android_ui/android` in Android Studio.
+2. Update `BASE_URL` in `RetrofitClient` (`data/ApiService.kt`) to your backend's local network IP.
+3. Ensure `assets/lesson_bank_verified.json` and `assets/audio/*.wav` are present for offline seeding.
+4. Build and run - the app seeds its offline lesson library on first launch.
 
 ---
 
-## 📱 Features
+## Known Limitations
 
-* **One-Device Classroom Broadcast:** Single phone setup designed to project native Santali audio lessons to multi-grade classrooms.
-* **Auto-Generated Bilingual Cards:** Side-by-side display of source Hindi text and target Santali text for blackboard reproduction.
-* **Automated Practice Worksheets:** Extracts key terminology and creates classroom exercises automatically from lesson speech.
-* **Offline Caching:** Saves lesson metadata and synthesized audio locally via Room DB for offline classroom execution.
+- Live (non-cached) translation requires network connectivity to the backend; only pre-synced content works fully offline.(It is the designed choice, See the above architecture)
+- Ho and Mundari are not yet supported, pending viable open translation models for those languages.
+- Translation quality for Santali reflects its status as a genuinely low-resource language pair - published academic benchmarks for Santali sit well below high-resource Indic pairs. We mitigate this through human-verified curriculum content rather than presenting raw model output as ground truth.
 
-``` 
+## Roadmap
+
+- Expand verified lesson bank coverage across more FLN topics and grades.
+- Teacher-correction loop: corrections made in-app feed back into future translation review, turning classroom use into an ongoing data pipeline.
+- Investigate Ho/Mundari support as open resources for those languages mature.
+
+---
+
+## Team
+
+**Messi Verse** - Smart India Hackathon 2026
